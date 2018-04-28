@@ -7,8 +7,11 @@ module SessionType
     , dual
     , (<=>)
     , isCompatible
+    , union
+    , strictUnion
     ) where
 
+import qualified Data.Map.Merge.Strict as Merge
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 
@@ -19,17 +22,20 @@ data Type
     | BOOL
         deriving (Show, Eq, Read)
 
+-- Contents of Choose/Offer
+type Branches = Map String SessionType
+
 -- Must be Eq
 data SessionType
     = Wait -- end?
     | Kill -- end!
     | Send Type SessionType -- ! Type . SessionType
     | Recv Type SessionType -- ? Type . SessionType
-    | Choose (Map String SessionType) -- +{String:SessionType}
-    | Offer (Map String SessionType) -- &{String:SessionType}
+    | Choose Branches -- +{String:SessionType}
+    | Offer Branches -- &{String:SessionType}
         deriving (Show, Eq, Read)
 
-isValid' :: Map String SessionType -> Bool
+isValid' :: Branches -> Bool
 isValid' m
     =   Map.valid m -- Check map structure is valid
     &&  not (Map.null m) -- Check map is not empty
@@ -75,3 +81,34 @@ infix 9 <=>
 -- Determines if two types can communicate
 isCompatible :: SessionType -> SessionType -> Bool
 isCompatible a b = dual a <: b -- && dual b <: a (These are equivalent)
+
+strictUnion' :: Branches -> Branches -> Maybe Branches
+strictUnion' m n
+    | null (Map.intersection m n)   = Just $ Map.union m n
+    | otherwise                     = Nothing
+
+-- Unions two SessionTypes if possible and unambiguous
+strictUnion :: SessionType -> SessionType -> Maybe SessionType
+strictUnion (Choose m) (Choose n)   = Choose <$> strictUnion' m n
+strictUnion (Offer m) (Offer n)     = Offer <$> strictUnion' m n
+strictUnion _ _                     = Nothing
+
+union' :: Branches -> Branches -> Maybe Branches
+union' = Merge.mergeA
+    (Merge.traverseMissing $ \_ x -> Just x)
+    (Merge.traverseMissing $ \_ x -> Just x)
+    (Merge.zipWithAMatched $ \_ x y -> union x y)
+
+-- Unions two SessionTypes if possible and possibly ambiguous
+union :: SessionType -> SessionType -> Maybe SessionType
+union (Choose m) (Choose n) = Choose <$> union' m n
+union (Offer m) (Offer n)   = Offer <$> union' m n
+union (Send t1 a) (Send t2 b)
+    | t1 == t2  = Send t1 <$> union a b
+    | otherwise = Nothing
+union (Recv t1 a) (Recv t2 b)
+    | t1 == t2  = Recv t1 <$> union a b
+    | otherwise = Nothing
+union a b
+    | a == b    = Just a
+    | otherwise = Nothing

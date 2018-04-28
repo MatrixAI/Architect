@@ -6,6 +6,7 @@ import qualified Test.QuickCheck as QC
 import Test.QuickCheck (Arbitrary, arbitrary, property)
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
+import Data.Maybe (isJust, isNothing)
 
 instance Arbitrary Type where
     arbitrary = QC.elements [INT, STRING, BOOL]
@@ -172,3 +173,116 @@ main = hspec $ do
 
         it "matches subtypes when supertypes match" $ property $
             \a b c -> a <: c --> (a <=> b == b <=> c)
+
+    describe "SessionType.strictUnion" $ do
+        it "combines two protocols if possible and unambiguous" $ do
+            strictUnion (Choose $ Map.singleton "a" Wait)
+                (Choose $ Map.singleton "b" Kill) `shouldBe`
+                (Just $ Choose (Map.fromList [("a",Wait),("b",Kill)]))
+            strictUnion (Offer $ Map.singleton "get" Kill)
+                (Offer $ Map.singleton "post" Wait) `shouldBe`
+                (Just $ Offer (Map.fromList [("get",Kill),("post",Wait)]))
+
+            strictUnion (Choose $ Map.singleton "a" Wait)
+                (Choose $ Map.singleton "a" Wait) `shouldBe` Nothing
+            strictUnion (Offer $ Map.singleton "get" Kill)
+                (Offer $ Map.singleton "get" Wait) `shouldBe` Nothing
+
+        it "never combines Wait" $ property $
+            \a -> isNothing $ strictUnion Wait a
+
+        it "never combines Kill" $ property $
+            \a -> isNothing $ strictUnion Kill a
+
+        it "never combines Send" $ property $
+            \a b t -> isNothing $ strictUnion (Send t a) b
+
+        it "never combines Recv" $ property $
+            \a b t -> isNothing $ strictUnion (Recv t a) b
+
+        it "never combines valid SessionTypes with themselves" $ property $
+            \a -> isValid a --> isNothing (strictUnion a a)
+
+        it "never combines clashing names in Choose" $ property $
+            \a b s -> isNothing $ strictUnion (Choose $ Map.singleton s a)
+                (Choose $ Map.singleton s b)
+
+        it "never combines clashing names in Offer" $ property $
+            \a b s -> isNothing $ strictUnion (Offer $ Map.singleton s a)
+                (Offer $ Map.singleton s b)
+
+        it "never combines Choose and Offer" $ property $
+            \a s t -> isNothing $ strictUnion (Choose $ Map.singleton s a)
+                (Offer $ Map.singleton t a)
+
+        it "combines non-clashing names in Choose" $ property $
+            \a b s t -> (s /= t) --> isJust (strictUnion
+                (Choose $ Map.singleton s a) (Choose $ Map.singleton t b))
+
+        it "combines non-clashing names in Offer" $ property $
+            \a b s t -> (s /= t) --> isJust (strictUnion
+                (Offer $ Map.singleton s a) (Offer $ Map.singleton t b))
+
+        it "creates subtypes in Choose" $ property $
+            \a b s t -> (s /= t) --> (((<: Choose (Map.singleton s a)) <$>
+                strictUnion (Choose $ Map.singleton s a)
+                (Choose $ Map.singleton t b)) == Just True)
+
+        it "creates supertypes in Offer" $ property $
+            \a b s t -> (s /= t) --> (((Offer (Map.singleton s a) <:) <$>
+                strictUnion (Offer $ Map.singleton s a)
+                (Offer $ Map.singleton t b)) == Just True)
+
+        it "is symmetric" $ property $
+            \a b -> strictUnion a b == strictUnion b a
+
+        it "is associative" $ property $
+            \a b c -> (isJust (strictUnion a b) && isJust (strictUnion b c))
+                --> ((strictUnion a <$> strictUnion b c) ==
+                    (($ c) <$> (strictUnion <$> strictUnion a b)))
+
+
+    describe "SessionType.union" $ do
+        it "combines two SessionTypes if possible" $ do
+            union (Choose $ Map.singleton "a" Kill)
+                (Choose $ Map.singleton "b" Wait) `shouldBe`
+                Just (Choose $ Map.fromList [("a",Kill),("b",Wait)])
+            union (Offer $ Map.singleton "a" Kill)
+                (Offer $ Map.fromList [("a",Kill),("b",Wait)]) `shouldBe`
+                Just (Offer $ Map.fromList [("a",Kill),("b",Wait)])
+
+            union (Choose $ Map.singleton "a" Kill)
+                (Choose $ Map.singleton "a" Wait) `shouldBe` Nothing
+
+        it "works for everything strictUnion works for" $ property $
+            \a b -> isJust (strictUnion a b) --> (union a b == strictUnion a b)
+
+        it "combines Wait with Wait only" $ property $
+            \a -> isJust (union a Wait) == (a == Wait)
+
+        it "combines Kill with Kill only" $ property $
+            \a -> isJust (union a Kill) == (a == Kill)
+
+        it "combines the contents of a Send" $ property $
+            \a b t -> (Send t <$> union a b) == union (Send t a) (Send t b)
+
+        it "combines the contents of a Recv" $ property $
+            \a b t -> (Recv t <$> union a b) == union (Recv t a) (Recv t b)
+
+        it "combines the contents of a Choose" $ property $
+            \a b s -> (Choose . (Map.singleton s) <$> union a b) == union
+                (Choose $ Map.singleton s a) (Choose $ Map.singleton s b)
+
+        it "combines the contents of an Offer" $ property $
+            \a b s -> (Offer . (Map.singleton s) <$> union a b) == union
+                (Offer $ Map.singleton s a) (Offer $ Map.singleton s b)
+
+        it "combines anything with itself" $ property $
+            \a -> union a a == Just a
+
+        it "is symmetric" $ property $
+            \a b -> union a b == union b a
+
+        it "is associative" $ property $
+            \a b c -> (isJust (union a b) && isJust (union b c)) -->
+                ((union a <$> union b c) == (($ c) <$> (union <$> union a b)))

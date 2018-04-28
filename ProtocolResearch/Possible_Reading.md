@@ -5,3 +5,4 @@
 * http://simonjf.com/writing/bsc-dissertation.pdf
 * https://bentnib.org/quantitative-type-theory.html
 * https://github.com/jozefg/learn-tt
+* http://dev.stephendiehl.com/fun/006_hindley_milner.html
