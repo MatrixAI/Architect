@@ -2,9 +2,9 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b4381657a6fddb9a8315513533c0e78f3085d245f032f793e978e8e7e13d5990
+-- hash: 8af67ce7ac11e0880eab5868540bd85cc83e67e6c95f14e313295f54be92bd1b
 
-name:           sessiontypes
+name:           session-types
 version:        0.1.0.0
 description:    Please see the README on Github at <https://github.com/MatrixAI/Architect/ProtocolResearch/SessionTypesDemo#readme>
 homepage:       https://github.com/MatrixAI/Architect/ProtocolResearch/SessionTypesDemo#readme
@@ -29,7 +29,7 @@ library
   exposed-modules:
       SessionType
   other-modules:
-      Paths_sessiontypes
+      Paths_session_types
   hs-source-dirs:
       src
   build-depends:
@@ -41,14 +41,14 @@ test-suite SessionTypesDemo-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_sessiontypes
+      Paths_session_types
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
-    , SessionTypesDemo
     , base >=4.7 && <5
     , containers
     , hspec
+    , session-types
   default-language: Haskell2010

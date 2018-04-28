@@ -2,8 +2,10 @@ module SessionType
     ( Type(..)
     , SessionType(..)
     , isValid
+    , (<:)
     , isSubType
     , dual
+    , (<=>)
     , isCompatible
     ) where
 
@@ -42,12 +44,17 @@ isValid (Send _ a) = isValid a
 isValid (Recv _ a) = isValid a
 isValid _ = True
 
--- Determines if the first is a subtype of the second
+-- Left is subtype of Right
+infix 9 <:
+(<:) :: SessionType -> SessionType -> Bool
+(<:) = flip isSubType
+
+-- Determines if the second is a subtype of the first
 isSubType :: SessionType -> SessionType -> Bool
 -- The subtype can choose more options
-isSubType (Choose m) (Choose n)     = Map.isSubmapOfBy isSubType n m
+isSubType (Choose m) (Choose n)     = Map.isSubmapOfBy (<:) m n
 -- The subtype offers fewer options
-isSubType (Offer m) (Offer n)       = Map.isSubmapOfBy isSubType m n
+isSubType (Offer m) (Offer n)       = Map.isSubmapOfBy (<:) n m
 isSubType (Send t1 a) (Send t2 b)   = t1 == t2 && isSubType a b
 isSubType (Recv t1 a) (Recv t2 b)   = t1 == t2 && isSubType a b
 isSubType a b                       = a == b
@@ -61,6 +68,10 @@ dual (Recv t a) = Send t (dual a)
 dual (Choose m) = Offer (dual <$> m)
 dual (Offer m) = Choose (dual <$> m)
 
+infix 9 <=>
+(<=>) :: SessionType -> SessionType -> Bool
+(<=>) = isCompatible
+
 -- Determines if two types can communicate
 isCompatible :: SessionType -> SessionType -> Bool
-isCompatible a b = isSubType (dual a) b && isSubType (dual b) a
+isCompatible a b = dual a <: b -- && dual b <: a (These are equivalent)

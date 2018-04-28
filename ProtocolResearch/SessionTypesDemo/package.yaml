@@ -1,4 +1,4 @@
-name:                sessiontypes
+name:                session-types
 version:             0.1.0.0
 github:              "MatrixAI/Architect/ProtocolResearch/SessionTypesDemo"
 license:             Apache-2.0
@@ -35,7 +35,7 @@ library:
 #     - -rtsopts
 #     - -with-rtsopts=-N
 #     dependencies:
-#     - SessionTypesDemo
+#     - session-types
 
 tests:
   SessionTypesDemo-test:
@@ -46,6 +46,6 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - SessionTypesDemo
+    - session-types
     - hspec
     - QuickCheck
