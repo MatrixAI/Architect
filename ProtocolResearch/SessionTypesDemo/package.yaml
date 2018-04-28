@@ -1,10 +1,10 @@
-name:                SessionTypesDemo
+name:                sessiontypes
 version:             0.1.0.0
 github:              "MatrixAI/Architect/ProtocolResearch/SessionTypesDemo"
-license:
+license:             Apache-2.0
 author:              "Oliver Scarlet"
 maintainer:          "oliver.scarlet@matrix.ai"
-copyright:           "2018 Matrix AI"
+copyright:           "(c) Matrix AI 2018"
 
 extra-source-files:
 - README.md
