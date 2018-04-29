@@ -80,10 +80,19 @@ main = hspec $ do
             (Offer $ Map.fromList [("get",Wait),("post",Kill)])
                 `shouldNotSatisfy` (<: Offer (Map.singleton "get" Wait))
 
+            (Choose $ Map.fromList [("a",Offer $ Map.singleton "c" Kill),
+                ("b",Wait)]) `shouldSatisfy` (<: Choose
+                (Map.singleton "a" (Offer $ Map.fromList [("c",Kill),
+                ("d",Wait)])))
+
+            (Offer $ Map.singleton "a" (Choose $ Map.fromList [("c",Kill),
+                ("d",Wait)])) `shouldSatisfy` (<: Offer (Map.fromList
+                [("a",Choose $ Map.singleton "c" Kill),("b",Wait)]))
+
         it "is reflexive" $ property $
             \a -> a <: a
 
-        it "is not symmetric" $ property $
+        it "is antisymmetric" $ property $
             \a b -> (a == b) == (a <: b && b <: a)
 
         it "is transitive" $ property $
@@ -139,6 +148,9 @@ main = hspec $ do
         it "constructs the dual of a SessionType in Option" $ property $
             \a s -> dual (Offer $ Map.singleton s a) ==
                 Choose (Map.singleton s $ dual a)
+
+        it "inverts subtypes" $ property $
+            \a b -> a <: b == dual b <: dual a
 
     describe "SessionType.isCompatible" $ do
         it "checks if two session types can communicate" $ do
@@ -241,6 +253,36 @@ main = hspec $ do
                 --> ((strictUnion a <$> strictUnion b c) ==
                     (($ c) <$> (strictUnion <$> strictUnion a b)))
 
+    describe "SessionType.smartUnion" $ do
+        it "combines two protocols if possible" $ do
+            smartUnion (Choose $ Map.singleton "a" Kill)
+                (Choose $ Map.fromList [("a",Kill),("b",Wait)]) `shouldBe`
+                Just (Choose $ Map.fromList [("a",Kill),("b",Wait)])
+
+        it "works for everything strictUnion works for" $ property $
+            \a b -> isJust (strictUnion a b) -->
+                (smartUnion a b == strictUnion a b)
+
+        it "never combines Wait" $ property $
+            \a -> isNothing $ smartUnion Wait a
+
+        it "never combines Kill" $ property $
+            \a -> isNothing $ smartUnion Kill a
+
+        it "never combines Send" $ property $
+            \a b t -> isNothing $ smartUnion (Send t a) b
+
+        it "never combines Recv" $ property $
+            \a b t -> isNothing $ smartUnion (Recv t a) b
+
+        it "is symmetric" $ property $
+            \a b -> smartUnion a b == smartUnion b a
+
+        it "is associative" $ property $
+            \a b c -> (isJust (smartUnion a b) && isJust (smartUnion b c))
+                --> ((smartUnion a <$> smartUnion b c) ==
+                    (($ c) <$> (smartUnion <$> smartUnion a b)))
+
 
     describe "SessionType.union" $ do
         it "combines two SessionTypes if possible" $ do
@@ -254,8 +296,8 @@ main = hspec $ do
             union (Choose $ Map.singleton "a" Kill)
                 (Choose $ Map.singleton "a" Wait) `shouldBe` Nothing
 
-        it "works for everything strictUnion works for" $ property $
-            \a b -> isJust (strictUnion a b) --> (union a b == strictUnion a b)
+        it "works for everything smartUnion works for" $ property $
+            \a b -> isJust (smartUnion a b) --> (union a b == smartUnion a b)
 
         it "combines Wait with Wait only" $ property $
             \a -> isJust (union a Wait) == (a == Wait)

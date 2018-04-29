@@ -8,6 +8,7 @@ module SessionType
     , (<=>)
     , isCompatible
     , union
+    , smartUnion
     , strictUnion
     ) where
 
@@ -58,7 +59,7 @@ infix 9 <:
 -- Determines if the second is a subtype of the first
 isSubType :: SessionType -> SessionType -> Bool
 -- The subtype can choose more options
-isSubType (Choose m) (Choose n)     = Map.isSubmapOfBy (<:) m n
+isSubType (Choose m) (Choose n)     = Map.isSubmapOfBy isSubType m n
 -- The subtype offers fewer options
 isSubType (Offer m) (Offer n)       = Map.isSubmapOfBy (<:) n m
 isSubType (Send t1 a) (Send t2 b)   = t1 == t2 && isSubType a b
@@ -95,11 +96,11 @@ strictUnion _ _                     = Nothing
 
 union' :: Branches -> Branches -> Maybe Branches
 union' = Merge.mergeA
-    (Merge.traverseMissing $ \_ x -> Just x)
-    (Merge.traverseMissing $ \_ x -> Just x)
-    (Merge.zipWithAMatched $ \_ x y -> union x y)
+    (Merge.traverseMissing $ const Just)
+    (Merge.traverseMissing $ const Just)
+    (Merge.zipWithAMatched $ const union)
 
--- Unions two SessionTypes if possible and possibly ambiguous
+-- Unions two SessionTypes if possible, allows ambiguity
 union :: SessionType -> SessionType -> Maybe SessionType
 union (Choose m) (Choose n) = Choose <$> union' m n
 union (Offer m) (Offer n)   = Offer <$> union' m n
@@ -112,3 +113,16 @@ union (Recv t1 a) (Recv t2 b)
 union a b
     | a == b    = Just a
     | otherwise = Nothing
+
+smartUnion' :: Branches -> Branches -> Maybe Branches
+smartUnion' = Merge.mergeA
+    (Merge.traverseMissing $ const Just)
+    (Merge.traverseMissing $ const Just)
+    (Merge.zipWithAMatched $
+        \_ a b -> if a == b then Just a else smartUnion a b)
+
+-- Unions two SessionTypes if possible, allows limited ambiguity
+smartUnion :: SessionType -> SessionType -> Maybe SessionType
+smartUnion (Choose m) (Choose n)    = Choose <$> smartUnion' m n
+smartUnion (Offer m) (Offer n)      = Offer <$> smartUnion' m n
+smartUnion _ _                      = Nothing
