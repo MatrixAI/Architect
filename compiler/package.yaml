@@ -1,0 +1,40 @@
+name: architect-compiler
+version: 0.0.1
+license: Apache-2.0
+author: ['CMCDragonkai']
+maintainer: 'roger.qiu@matrix.ai'
+copyright: ['(c) Matrix AI 2017']
+category: Compiler
+
+dependencies:
+  - base >= 4.7 && < 5
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - Architect.Compiler
+  dependencies:
+    - hint >= 0.7 && < 0.8
+    - ghc >= 7.8 && < 8.4
+    - ghc-paths
+    - ghc-boot
+    - bytestring >= 0.10 && < 0.11
+    - megaparsec >= 6.4 && < 6.5
+
+# executables:
+#   multihash-exe:
+#     main: Main.hs
+#     source-dirs: app
+#     dependencies:
+#       - hs-multihash
+#       - bytestring >= 0.10 && < 0.11
+#       - io-streams >= 1.2 && < 1.6
+#       - optparse-applicative >= 0.11 && < 0.15
+#     ghc-options:
+#       - -threaded
+#       - -rtsopts
+#       - -with-rtsopts=-N
+#       - -Wall
+#       - -funbox-strict-fields
+#       - -fdicts-cheap
+#       - -O2
