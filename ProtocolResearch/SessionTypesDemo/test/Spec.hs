@@ -34,6 +34,10 @@ sizedSession n = QC.oneof
 instance Arbitrary SessionType where
     arbitrary = QC.sized sizedSession
 
+{-
+    Boolean Implication, (False --> x) == True, (x --> True) == True,
+    (True --> False) == False
+-}
 infix 4 -->
 (-->) :: Bool -> Bool -> Bool
 (-->) = (<=)
@@ -49,7 +53,10 @@ main = hspec $ do
             (Choose $ Map.singleton "a" Wait) `shouldSatisfy` isValid
             (Offer $ Map.singleton "get" Kill) `shouldSatisfy` isValid
 
+            -- Choosing from no options is invalid
             Choose Map.empty `shouldNotSatisfy` isValid
+
+            -- Options must have a name
             (Offer $ Map.fromList [("", Kill)]) `shouldNotSatisfy` isValid
 
         it "checks a SessionType in Send is valid" $ property $
@@ -70,24 +77,35 @@ main = hspec $ do
             Kill `shouldSatisfy` (<: Kill)
             Send STRING Wait `shouldSatisfy` (<: Send STRING Wait)
             Recv INT Kill `shouldSatisfy` (<: Recv INT Kill)
+
+            -- Choosing from fewer options is more general
             (Choose $ Map.fromList [("a",Kill),("b",Wait)]) `shouldSatisfy`
                 (<: Choose (Map.singleton "b" Wait))
+
+            -- Offering more options is more general
             (Offer $ Map.singleton "post" Kill) `shouldSatisfy`
                 (<: Offer (Map.fromList [("get",Wait),("post",Kill)]))
 
+            -- Choosing from more options is not more general
             (Choose $ Map.singleton "a" Kill) `shouldNotSatisfy`
                 (<: Choose (Map.fromList [("a",Kill),("b",Wait)]))
+
+            -- Offering fewer options is not more general
             (Offer $ Map.fromList [("get",Wait),("post",Kill)])
                 `shouldNotSatisfy` (<: Offer (Map.singleton "get" Wait))
 
+            -- Checking that nesting Offer inside Choose works as expected
             (Choose $ Map.fromList [("a",Offer $ Map.singleton "c" Kill),
                 ("b",Wait)]) `shouldSatisfy` (<: Choose
                 (Map.singleton "a" (Offer $ Map.fromList [("c",Kill),
                 ("d",Wait)])))
 
+            -- Checking that nesting Choose inside Offer works as expected
             (Offer $ Map.singleton "a" (Choose $ Map.fromList [("c",Kill),
                 ("d",Wait)])) `shouldSatisfy` (<: Offer (Map.fromList
                 [("a",Choose $ Map.singleton "c" Kill),("b",Wait)]))
+
+        -- Relation properties
 
         it "is reflexive" $ property $
             \a -> a <: a
@@ -97,6 +115,8 @@ main = hspec $ do
 
         it "is transitive" $ property $
             \a b c -> (a <: b && b <: c) --> a <: c
+
+        -- Nesting properties
 
         it "matches Wait to Wait only" $ property $
             \a -> (a <: Wait || Wait <: a) == (a == Wait)
@@ -164,11 +184,14 @@ main = hspec $ do
             (Offer $ Map.singleton "a" Wait) `shouldNotSatisfy`
                 (<=> Choose (Map.fromList [("a",Kill),("b",Wait)]))
 
+        -- Relation property
         it "is symmetric" $ property $
             \a b -> a <=> b == b <=> a
 
         it "is always satisfied by duals" $ property $
             \a -> a <=> dual a && dual a <=> a
+
+        -- Nesting properties
 
         it "determines compatibility inside a Send/Recv" $ property $
             \a b t -> a <=> b == Send t a <=> Recv t b
@@ -176,6 +199,8 @@ main = hspec $ do
         it "determines compatibility inside a Choose/Offer" $ property $
             \a b s -> a <=> b ==
                 Offer (Map.singleton s a) <=> Choose (Map.singleton s b)
+
+
 
         it "matches Wait to Kill only" $ property $
             \a -> a <=> Wait == (a == Kill)
