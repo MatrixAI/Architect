@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 67c6b9ea8bd16a0ca0a6b2bdce2c7c8a285dcf9782f0f353d3388fb8e076195c
+-- hash: d5fd646745ccaf4c07bdf3b2432684382a22ae54cc6c8c76e8115fe7d8eb3b18
 
 name:           architect-compiler
 version:        0.0.1
@@ -29,4 +29,5 @@ library
     , ghc-paths
     , hint >=0.7 && <0.8
     , megaparsec >=6.4 && <6.5
+    , scientific >=0.3 && <0.4
   default-language: Haskell2010
