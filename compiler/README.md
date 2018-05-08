@@ -61,3 +61,20 @@ The `try` is needed when using on parsers that consume input. If the parser auto
 The `ShowErrorComponent` is a type class which says that there's an implementation for a given custom error, and it there's pretty printer for that error. The Void type is an instance of the ShowErrorComponent which means that it can be "shown".
 
 Then there's a function `absurd` for the Void type for the `ShowErrorComponent` typeclass.
+
+The `sepEndBy` is actually part of `Control.Monad.Combinators`. Here we go.
+
+We really should be using the quasiquoter to get the usage of the multlines.
+Otherwise it's quite annoying.
+
+How do you get megaparsec to work on text? Or do you have to use byte string?
+
+We use the quasiquoters to more easily write test cases for our expressions. Just for small embedded expressions.
+
+This is actually one way to embed architecte expressions is to use quasiquoters.
+
+We should ppsh to really print this stuff properly.
+
+Next we use Indentation Sensitive Parsing.
+
+So we can have proper indentation system.

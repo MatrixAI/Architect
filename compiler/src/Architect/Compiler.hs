@@ -1,43 +1,23 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Architect.Compiler where
 
 import Control.Applicative (empty)
 import Control.Monad (void)
-import Data.Void
+import Data.Void (Void)
+import Data.Char (isAlphaNum)
 import Text.Megaparsec
 import Text.Megaparsec.Char
-import Text.Megaparsec.Expr
-import qualified Data.Scientific as Sci
 import qualified Text.Megaparsec.Char.Lexer as L
 
-type Program = [Equation]
-
-data Equation = Equation String Expr
-  deriving (Eq, Show)
-
-data Expr = Value Double
-          | Reference String
-          | Negation Expr
-          | Sum Expr Expr
-          | Subtraction Expr Expr
-          | Multiplication Expr Expr
-          | Division Expr Expr
-          deriving (Eq, Show)
-
--- no custom error messages
--- not sure how the custom error messages here get used though
+import Data.Text (Text, unpack)
+import NeatInterpolation (text)
 
 type Parser = Parsec Void String
 
--- 2 whitespace consuming parsers
--- scn is consumes newlines and whitespace
--- we will use it for whitespace between equations
--- equations are newline delimited
-
--- sc does not consume newlines, and is used to define lexemes
--- things that automatically eat whitespace after them
+data Notes = Item String | Items String [Notes]
 
 lineComment :: Parser ()
 lineComment = L.skipLineComment "#"
@@ -53,36 +33,72 @@ sc = L.space (void $ takeWhile1P Nothing f) lineComment empty
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
-symbol :: String -> Parser String
-symbol = L.symbol sc
+pItem :: Parser String
+pItem = lexeme (takeWhile1P Nothing f)
+  where
+    f x = isAlphaNum x || x == '-'
 
-name :: Parser String
-name = lexeme ((:) <$> letterChar <*> many alphaNumChar) <?> "name"
 
-float :: Parser Double
-float = lexeme (Sci.toRealFloat <$> L.scientific)
+-- a single item
+-- a single item that is only alphanum and -
+-- no spaces allowed
+-- but what if you were to allow spaces in between
+-- like just until the newline?
 
-expr :: Parser Expr
-expr = makeExprParser term table
+-- wait we need lower level lexers and then convert them into an item
+--
 
-term :: Parser Expr
-term = parens expr <|>
-       (Reference <$> name) <|>
-       (Value <$> float)
 
-table :: [[Operator Parser Expr]]
-table =
-  [
-    [Prefix (Negation <$ symbol "-")],
-    [
-      InfixL $ Multiplication <$ symbol "*",
-      InfixL $ Division <$ symbol "/"
-    ],
-    [
-      InfixL $ Sum <$ symbol "+",
-      InfixL $ Subtraction <$ symbol "-"
-    ]
-  ]
+-- this parses a line fold
+pLineFold :: Parser String
+pLineFold = L.lineFold scn $ \sc' ->
+  let ps = takeWhile1P Nothing f `sepBy1` try sc'
+      f x = isAlphaNum x || x == '-'
+  in unwords <$> ps <* sc
 
-parens :: Parser a -> Parser a
-parens = between (symbol "(") (symbol ")")
+-- we go with a complex item
+pComplexItem :: Parser (String, [String])
+pComplexItem = L.indentBlock scn p
+  where
+    p = do
+      header <- pItem
+      return (L.IndentMany Nothing (return . (header, )) pLineFold)
+
+-- this begins with an item list
+pItemList :: Parser (String, [(String, [String])])
+pItemList = L.nonIndented scn (L.indentBlock scn p)
+  where
+    p = do
+      header <- pItem
+      return (L.IndentSome Nothing (return . (header, )) pComplexItem)
+
+-- this parses an item list
+parser = pItemList <* eof
+
+testParser = do
+  let source = unpack $ [text|
+    first-chapter
+      one
+        abc abc
+      two
+        doo
+        blah haha-blah
+      three
+        abc
+          dee
+           meh lol
+           doo
+  |]
+  parseTest' parser source
+
+-- what is the point of having such a line fold?
+
+-- a block of indentation c is a sequence of tokens with indentation at least c
+-- examples for a block is a where clause of haskell with no explicit braces
+-- a line fold starting at line l and indentation c is a sequence of tokens that start at line l and possibly continue to subsequent lines as long as the indentation is greater than c
+
+-- ok I get it, a line fold, starts at a certain point
+-- and all subsequent stuff gets folded into  line
+-- it's really like code folding
+-- an example is like MIME headers
+-- line folding based binding separation is used in Haskell as well
