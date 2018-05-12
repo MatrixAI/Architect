@@ -207,7 +207,7 @@ main = hspec $ do
         it "matches Kill to Wait only" $ property $
             \a -> a <=> Kill == (a == Wait)
 
-        it "matches subtypes when protocols match" $ property $
+        it "matches subtypes when supertypes match" $ property $
             \a b c -> (a <: b && b <=> c) --> a <=> c
 
     describe "SessionType.strictUnion" $ do
@@ -259,7 +259,7 @@ main = hspec $ do
             \a b s t -> (s /= t) --> isJust (strictUnion
                 (Offer $ Map.singleton s a) (Offer $ Map.singleton t b))
 
-        it "creates superprotocols in Choose" $ property $
+        it "creates supertypes in Choose" $ property $
             \a b s t -> (s /= t) --> ((((Choose $ Map.singleton s a) <:) <$>
                 strictUnion (Choose $ Map.singleton s a)
                 (Choose $ Map.singleton t b)) == Just True)
