@@ -79,31 +79,30 @@ main = hspec $ do
             Recv INT Kill `shouldSatisfy` (<: Recv INT Kill)
 
             -- Choosing from fewer options is more general
-            (Choose $ Map.fromList [("a",Kill),("b",Wait)]) `shouldSatisfy`
-                (<: Choose (Map.singleton "b" Wait))
-
-            -- Offering more options is more general
-            (Offer $ Map.singleton "post" Kill) `shouldSatisfy`
-                (<: Offer (Map.fromList [("get",Wait),("post",Kill)]))
-
-            -- Choosing from more options is not more general
-            (Choose $ Map.singleton "a" Kill) `shouldNotSatisfy`
+            (Choose $ Map.singleton "b" Wait) `shouldSatisfy`
                 (<: Choose (Map.fromList [("a",Kill),("b",Wait)]))
 
+            -- Offering more options is more general
+            (Offer $ Map.fromList [("get",Wait),("post",Kill)]) `shouldSatisfy`
+                (<: Offer (Map.singleton "post" Kill))
+
+            -- Choosing from more options is not more general
+            (Choose $ Map.fromList [("a",Kill),("b",Wait)]) `shouldNotSatisfy`
+                (<: Choose (Map.singleton "a" Kill))
+
             -- Offering fewer options is not more general
-            (Offer $ Map.fromList [("get",Wait),("post",Kill)])
-                `shouldNotSatisfy` (<: Offer (Map.singleton "get" Wait))
+            (Offer $ Map.singleton "get" Wait) `shouldNotSatisfy`
+                (<: Offer (Map.fromList [("get",Wait),("post",Kill)]))
 
             -- Checking that nesting Offer inside Choose works as expected
-            (Choose $ Map.fromList [("a",Offer $ Map.singleton "c" Kill),
-                ("b",Wait)]) `shouldSatisfy` (<: Choose
-                (Map.singleton "a" (Offer $ Map.fromList [("c",Kill),
-                ("d",Wait)])))
+            (Choose $ Map.singleton "a" (Offer $ Map.fromList [("c",Kill),
+                ("d",Wait)])) `shouldSatisfy` (<: Choose (Map.fromList
+                    [("a",Offer $ Map.singleton "c" Kill),("b",Wait)]))
 
             -- Checking that nesting Choose inside Offer works as expected
-            (Offer $ Map.singleton "a" (Choose $ Map.fromList [("c",Kill),
-                ("d",Wait)])) `shouldSatisfy` (<: Offer (Map.fromList
-                [("a",Choose $ Map.singleton "c" Kill),("b",Wait)]))
+            (Offer $ Map.fromList [("a",Choose $ Map.singleton "c" Kill),
+                ("b",Wait)]) `shouldSatisfy` (<: Offer (Map.singleton "a"
+                (Choose $ Map.fromList [("c",Kill), ("d",Wait)])))
 
         -- Relation properties
 
@@ -208,8 +207,8 @@ main = hspec $ do
         it "matches Kill to Wait only" $ property $
             \a -> a <=> Kill == (a == Wait)
 
-        it "matches subtypes when supertypes match" $ property $
-            \a b c -> a <: c --> (a <=> b == b <=> c)
+        it "matches subtypes when protocols match" $ property $
+            \a b c -> (a <: b && b <=> c) --> a <=> c
 
     describe "SessionType.strictUnion" $ do
         it "combines two protocols if possible and unambiguous" $ do
@@ -260,13 +259,13 @@ main = hspec $ do
             \a b s t -> (s /= t) --> isJust (strictUnion
                 (Offer $ Map.singleton s a) (Offer $ Map.singleton t b))
 
-        it "creates subtypes in Choose" $ property $
-            \a b s t -> (s /= t) --> (((<: Choose (Map.singleton s a)) <$>
+        it "creates superprotocols in Choose" $ property $
+            \a b s t -> (s /= t) --> ((((Choose $ Map.singleton s a) <:) <$>
                 strictUnion (Choose $ Map.singleton s a)
                 (Choose $ Map.singleton t b)) == Just True)
 
-        it "creates supertypes in Offer" $ property $
-            \a b s t -> (s /= t) --> (((Offer (Map.singleton s a) <:) <$>
+        it "creates subtypes in Offer" $ property $
+            \a b s t -> (s /= t) --> (((<: (Offer $ Map.singleton s a)) <$>
                 strictUnion (Offer $ Map.singleton s a)
                 (Offer $ Map.singleton t b)) == Just True)
 

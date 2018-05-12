@@ -1,6 +1,6 @@
 # SessionTypesDemo
 
-This is a demonstration of Session Types, which may be used in the type theory of Architect in future. It is based on a paper about [Gradual Session Types](http://homepages.inf.ed.ac.uk/wadler/papers/gradsess/gradsess.pdf)
+This is a demonstration of Session Types, which may be used in the type theory of Architect in future.
 
 ## SessionType.hs
 
@@ -32,9 +32,11 @@ These constructors represent branching to multiple possible Session Types. Unlik
 
 Neither `Offer` nor `Choose` can have an empty set of options, and no label may be the empty string.
 
+<!-- TODO
+
 #### Example Session Types
 
-<!-- TODO -->
+ -->
 
 ### isValid
 
@@ -52,11 +54,13 @@ This function must be symmetric and reflexive, so `a <=> a` always, and `a <=> b
 
 ### isSubType
 
-Subtyping in Session Types is based on the requirement that the supertypes of any compatible pair of Session Types should also be compatible. A more precise definition of subtypes in this manner can be found in http://homepages.inf.ed.ac.uk/wadler/papers/gradsess/gradsess.pdf.
+Subtypes in Session Types is based on the requirement that the subtypes of any compatible pair of Session Types should also be compatible.
 
-`isSubType a b` or `b <: a` is `True` iff `b` is a subtype of `a`.
+`isSubType a b` or `a <: b` is `True` iff `a` is a subtype of `b`.
 
-This function is reflexive, antisymmetric, and transitive, so `a <: a` always, if `a /= b` and `a <: b` then `b <: a == False`, and if `a <: b` and `b <: c` then `a <: c`. The core requirement of subtypes with relation to compatibility is if `a <: b` and `c <: d` and `a <=> c` then `b <=> d`.
+This function is reflexive, antisymmetric, and transitive, so `a <: a` always, if `a /= b` and `a <: b` then `b <: a == False`, and if `a <: b` and `b <: c` then `a <: c`. The core requirement of subtypes with relation to compatibility is if `a <: b` and `c <: d` and `b <=> d` then `a <=> c`.
+
+If this differs from other notions of subtyping for session types, that is because a session type here is the type of an interface that an automaton presents, and so being compatible with a session type implies being compatible with its subtypes. The usual perspective is that a session type is the type of a channel, so being able to communicate using a type of channel implies being able to communicate any subtype. The result of this is that subtyping is flipped from usual, but this perspective is more inutitive for this application.
 
 ### dual
 

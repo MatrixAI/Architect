@@ -54,14 +54,14 @@ isValid _ = True
 -- Left is subtype of Right
 infix 9 <:
 (<:) :: SessionType -> SessionType -> Bool
-(<:) = flip isSubType
+(<:) = isSubType
 
--- Determines if the second is a subtype of the first
+-- Determines if the first is a subtype of the second
 isSubType :: SessionType -> SessionType -> Bool
--- The subtype can choose more options
+-- The subtype chooses from fewer options
 isSubType (Choose m) (Choose n)     = Map.isSubmapOfBy isSubType m n
--- The subtype offers fewer options
-isSubType (Offer m) (Offer n)       = Map.isSubmapOfBy (<:) n m
+-- The subtype offers extra options
+isSubType (Offer m) (Offer n)       = Map.isSubmapOfBy (flip isSubType) n m
 isSubType (Send t1 a) (Send t2 b)   = t1 == t2 && isSubType a b
 isSubType (Recv t1 a) (Recv t2 b)   = t1 == t2 && isSubType a b
 isSubType a b                       = a == b
@@ -81,7 +81,7 @@ infix 9 <=>
 
 -- Determines if two types can communicate
 isCompatible :: SessionType -> SessionType -> Bool
-isCompatible a b = dual a <: b -- && dual b <: a (These are equivalent)
+isCompatible a b = a <: dual b -- && b <: dual a (These are equivalent)
 
 strictUnion' :: Branches -> Branches -> Maybe Branches
 strictUnion' m n
