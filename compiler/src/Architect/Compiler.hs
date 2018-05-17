@@ -85,7 +85,7 @@ blockComment = PL.skipBlockComment "{-" "-}"
 space :: Parser ()
 space = PL.space PC.space1 lineComment blockComment
 
-symbol :: Text -> Parser Text
+symbol :: T.Text -> Parser T.Text
 symbol = PL.symbol space
 
 -- the front end syntax is
@@ -131,3 +131,42 @@ Note that we also have the ability to parse just these bindings
 It says that with a delcaration we can have a certain bindings
 
 -}
+
+
+-- type List a = Fix (L a)
+
+-- data L a b = Nil | Cons a b
+
+-- -- the b is the actual contained element
+
+-- instance Functor (L a) where
+--   fmap f x = case x of
+--     Nil -> Nil
+--     Cons a b -> Cons a (f b)
+
+-- length :: List a -> Int
+-- length = cata $ \x -> case x of
+--   Nil -> 0
+--   Cons _ n -> n + 1
+
+-- what you see here is that length which would normally be expressed in recursive manner, is now expressed in non recursive ways!?
+
+-- using this also means that you can preserve a comon type
+-- Bell next
+
+-- data Toy b next
+
+-- data Toy next = Output next
+--               | Bell next
+--               | Done
+
+-- Output (Bell Done)
+
+-- how does it know how to reduce the types
+
+-- you are nesting the types
+-- but if you are using Fix you end up not needing to fix the types!
+-- using the Fix types you end up with a collapsed type
+-- this seems kind of interesting, what is the use case?
+
+-- grammars are uu
