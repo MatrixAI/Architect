@@ -217,3 +217,5 @@ we must not allow identifiers to be in reserved names
 
 the first letterChar must not be capitals
 caps are reserved for
+
+Ok we are building from the Nix parser.

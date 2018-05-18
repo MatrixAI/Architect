@@ -3,7 +3,7 @@ module Architect.Parser where
 
 import           Control.Applicative
 import           Control.Monad
-import           Data.Char                  (isAlpha, isDigit)
+import           Data.Char                  (isAlpha, isDigit, isSpace)
 import qualified Data.HashSet               as HS
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
@@ -62,6 +62,43 @@ identifier = lexeme $ MP.try $ do
   where
     identLetter :: Char -> Bool
     identLetter x = isAlpha x || isDigit x || x == '_'
+
+
+integer :: Parser Integer
+integer = lexeme MPL.decimal
+
+float :: Parser Double
+float = lexeme MPL.float
+
+-- special parsers
+equals :: Parser Text
+equals = symbol "="
+
+comma :: Parser Text
+comma = symbol ","
+
+-- so this is saying that there can be an end to the reserved thing
+-- also this n is matching just a n and then saying not to have anything else afterwards
+-- so it's reserved
+reservedEnd :: Char -> Bool
+reservedEnd x =
+  isSpace x ||
+  x == '{'  ||
+  x == '('  ||
+  x == '['  ||
+  x == '}'  ||
+  x == ')'  ||
+  x == ']'  ||
+  x == ';'  ||
+  x == ':'  ||
+  x == '.'  ||
+  x == '"'  ||
+  x == '\'' ||
+  x == ','
+
+reserved :: Text -> Parser ()
+reserved n = lexeme $ MP.try $
+  MPC.string n *> MP.lookAhead (void (MPC.satisfy reservedEnd) <|> MP.eof)
 
 
 -- if parser text parses empty
