@@ -219,3 +219,25 @@ the first letterChar must not be capitals
 caps are reserved for
 
 Ok we are building from the Nix parser.
+
+---
+
+There's a lot of macro usage with `deriving-compat`. I'm not sure what it's used for. But apparently has something to do with deriving things. Not sure why this is needed. I will ignore it for now.
+
+There's `Nix/Atoms.hs`, which contains atomic things. This gets used by `NExprF` which is a type level fix abtraction of nix expressions. It appears to form a tree of expressions. That is, the `r` gets internally. But there are leaf expressions that cannot have further expressions. For example `NConstant !NAtom`. Which ends. But there is things like `NLet ![Binding r] !r`. So there we go. This is our abstract syntax tree. It is an AST because it has operators like unary and binary instead of turning them into general function application.
+
+The AST `NExprF` gets used by `NExprLoc` which is capable of recording the source span positions of these expressions.
+
+Note that for our isomorphic transformations, we'll need a CST or parse tree as well. We should change the name accordingly. In the future we need a way of mapping between them.
+
+The `NExprF` is the hnix AST.
+
+The reason why bindings use attribute paths is because it's possible to quickly create an attribute set by doing:
+
+```
+let a.b = 3; in a
+```
+
+This automatically makes `a` into an attribute set.
+
+So our bindings are all based on attribute paths. And if we let something equal that thing, we get that... exactly.
