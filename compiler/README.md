@@ -241,3 +241,131 @@ let a.b = 3; in a
 This automatically makes `a` into an attribute set.
 
 So our bindings are all based on attribute paths. And if we let something equal that thing, we get that... exactly.
+
+`f a` is `NSym "f", NSym "a"`.
+
+Ok... so I thought this would be recursive.
+
+In Nix, that don't have operator overloading.
+
+So the have a fixed parser form of unary operators and binary operators. Where unary operators take another r, but binary operators also take 2 rs.
+
+If we allow operator overloading, then really any operator is just a specific form of function application, but where the text is not like function name, but an operator symbols?
+
+```
+
+NUnary NUnaryOp r
+
+data NUnaryOp = NNeg | NNot
+
+data NBinaryOp
+  = NEq      -- ^ Equality (==)
+  | NNEq     -- ^ Inequality (!=)
+  | NLt      -- ^ Less than (<)
+  | NLte     -- ^ Less than or equal (<=)
+  | NGt      -- ^ Greater than (>)
+  | NGte     -- ^ Greater than or equal (>=)
+  | NAnd     -- ^ Logical and (&&)
+  | NOr      -- ^ Logical or (||)
+  | NImpl    -- ^ Logical implication (->)
+  | NUpdate  -- ^ Joining two attribut sets (//)
+  | NPlus    -- ^ Addition (+)
+  | NMinus   -- ^ Subtraction (-)
+  | NMult    -- ^ Multiplication (*)
+  | NDiv     -- ^ Division (/)
+  | NConcat  -- ^ List concatenation (++)
+  | NApp     -- ^ Apply a function to an argument.
+```
+
+Ok so we don't do this then. So what do we do? We do the same as `ASTSymbol AVariable`.
+It's just we have 2 kinds.
+
+NExprF
+
+Note that the stuff about annotations is on `Annotated`.
+
+All of this is just types for the ast.
+
+Ok so even though I have the AST here. I'd really like to start seeing some functions built around this instead of just declaring types.
+
+Unicode symbols and strings are fair go for names. Just like Haskell. It simplifies the AST though.
+
+```
+-- we have a thing called nixTerm which parses a NExprLoc
+-- what is NExprLoc?
+-- it's in Nix/Expr/Types/Annotated.hs
+-- type NExprLoc = Fix NExprLocF
+-- type NExprLocF = AnnF SrcSpan NExprF
+-- so there's some sort of position tracking maintained here
+-- type AnnF ann f = Compose (Ann ann) f
+
+-- data Ann ann a = Ann {
+--   annotation :: ann
+--   annotated :: a
+--                      }
+
+-- it appears to contain an annotation of type ann
+-- and the annotated thing itself which is a
+-- so what is ann?
+-- it's SrcSpan
+-- what is a?
+-- it is NExprF
+-- so the src span is some sort of annotation for keeping track of the text location
+-- this is important...
+
+
+-- the SourcePos has sourceName, sourceLine, sourcColumn
+-- ok so we keep track of the name as well
+-- so that's the file name
+-- you can do sourcePosPretty and take a SourcePos and print out the string
+-- FilePath is by the System.IO
+
+-- source pos is the megaparsec type that keeps track of the position
+-- Text.Megaparsec.Pos
+
+-- ok I see it... "./abc:1:1"
+
+-- SourcePos represents source positions, it contains the name of the source file
+-- a line number and a column number
+-- source line and column positions change intensively during parsing, so we need to make them strict to avoid memory leaks
+
+-- if parser text parses empty
+-- isn't that an error?
+-- what does that mean?
+
+-- these are the primitives within the language
+-- our language is based on Nix, but with signifcant whitespace I think
+-- or something else...
+-- we also have top level expressions
+-- so the top level is always a module
+-- so you don't always need to wrap it in {}
+-- it's just for readability
+
+-- we need let in
+-- what about operator overloading
+-- we want to bring that in as well
+-- so...
+-- also what is true or false
+-- we would want to allow data constructors right?
+-- or do we not need this, creating algebraic data structures
+
+
+data SrcSpan = SrcSpan
+  { spanBegin :: MPP.SourcePos
+  , spanEnd   :: MPP.SourcePos
+  } deriving (Show, Ord, Eq, NFData, Generic, Typeable, Data)
+
+data Ann ann a = Ann
+  { annotation :: ann,
+    annotated :: a
+  } deriving (Show, Ord, Eq, Generic, Generic1)
+
+-- so here we have the Compose functor
+-- it itself is also a Functor
+-- it is the composition of 2 functors
+-- it is a new type
+-- so Ann ann is a Functor
+-- f is also a Functor
+-- if f is meant to be the fixed version, does that mean AnnF is then Fixed to include itself?
+type AnnF ann f = Compose (Ann ann) f
+```
