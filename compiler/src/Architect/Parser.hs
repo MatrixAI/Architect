@@ -32,6 +32,8 @@ import Data.Hashable
 -- DeepSeq is for NFData so we can fully evaluate data structures
 import Control.DeepSeq
 
+import Architect.Expr.Types
+
 type Parser = MP.Parsec Void Text
 
 symbol :: Text -> Parser Text
@@ -118,4 +120,44 @@ reserved :: Text -> Parser ()
 reserved n = lexeme $ MP.try $
   MPC.string n *> MP.lookAhead (void (MPC.satisfy reservedEnd) <|> MP.eof)
 
+mkDoubleF :: Double -> AASTF r
+mkDoubleF = ASTLiteral . LitDouble
 
+-- so this annotates a parser
+-- ok...
+-- hmm this annotated position might be useful later not just for debugging but for manipulation as well...
+-- I wonder if that's what they were thinking
+annotateLocation :: Parser a -> Parser (Annotate SrcSpan a)
+annotateLocation p = do
+  posBegin <- MP.getPosition
+  result   <- p
+  posEnd   <- MP.getPosition
+  return $ Annotate (SrcSpan posBegin posEnd) result
+
+-- this one takes a parser of some AASTF...
+-- but makes it parse AASTLoc instead
+-- annotateLocation1 :: Parser (AASTF AASTLoc) -> Parser AASTLoc
+-- annotateLocation1 = fmap annToAnnF . annotateLocation
+
+-- annToAnnF uses pattern synonyms
+
+-- I don't know how patterns are used with functions
+-- are they just replacements
+-- also since AnnF doesn't exist
+-- then why do we have this?
+
+-- architectFloat :: Parser AASTLoc
+-- architectFloat = MP.try (mkDoubleF <$> float)
+
+-- mkFloatF . realToFrac <$>
+
+-- mkFloatF :: Float -> NExprF a
+-- mkFloatF = NConstant . NFloat
+-- these are constructors!
+-- mkFloatF = ASTLiteral . LitFloat
+-- this takes a float to 
+
+-- nix only has floats
+-- but we can do doubles easily
+-- right...?
+-- so what we are doing here?

@@ -369,3 +369,32 @@ data Ann ann a = Ann
 -- if f is meant to be the fixed version, does that mean AnnF is then Fixed to include itself?
 type AnnF ann f = Compose (Ann ann) f
 ```
+
+---
+
+We have parts of the AST, we need the parse functions to work on it.
+
+It is the parse functions.
+
+Well all the parsers are parsing NExprLoc.
+
+This is `NIx/Expr/Types/Annotated.hs`.
+
+So let's try and see what is happening there.
+
+It appears that the annotated proeprty inside `Ann` is also the `AASTLocF`. That is both `Ann ann` and AASTF will end up being fixed with AASTLocF. Not sure why this amount of type complexity is here...
+
+Why is there so much complexity with just annotating our AST with the location!?
+
+It's several levels of nesting.
+
+But basically we get 2 functors composed together to contain our fix.
+
+```
+(Ann SrcSpan) (AASTF (AASTLocF))
+ f             g      a
+```
+
+As you can see it's just recursion again, but nested.
+
+And the annotation is really generic!
