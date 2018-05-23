@@ -1,14 +1,15 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveAnyClass     #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE KindSignatures     #-}
+{-# LANGUAGE OverloadedStrings  #-}
 
 module Architect.Parser where
 
 import           Control.Applicative
 import           Control.Monad
 import           Data.Char                  (isAlpha, isDigit, isSpace)
+import           Data.Fix
 import qualified Data.HashSet               as HS
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
@@ -17,22 +18,24 @@ import qualified Text.Megaparsec            as MP
 import qualified Text.Megaparsec.Char       as MPC
 import qualified Text.Megaparsec.Char.Lexer as MPL
 import qualified Text.Megaparsec.Pos        as MPP
-import Data.Fix
+
+import           Text.Megaparsec            ((<?>))
+
 
 -- haskell now has NonEmpty lists
-import qualified Data.List.NonEmpty as NE
+import qualified Data.List.NonEmpty         as NE
 
-import Data.Functor.Compose
+import           Data.Functor.Compose
 
 import           Control.Monad              (void)
-import GHC.Generics
-import Data.Data
-import Data.Hashable
+import           Data.Data
+import           Data.Hashable
+import           GHC.Generics
 
 -- DeepSeq is for NFData so we can fully evaluate data structures
-import Control.DeepSeq
+import           Control.DeepSeq
 
-import Architect.Expr.Types
+import           Architect.Expr.Types
 
 type Parser = MP.Parsec Void Text
 
@@ -120,8 +123,6 @@ reserved :: Text -> Parser ()
 reserved n = lexeme $ MP.try $
   MPC.string n *> MP.lookAhead (void (MPC.satisfy reservedEnd) <|> MP.eof)
 
-mkDoubleF :: Double -> AASTF r
-mkDoubleF = ASTLiteral . LitDouble
 
 -- so this annotates a parser
 -- ok...
@@ -134,30 +135,24 @@ annotateLocation p = do
   posEnd   <- MP.getPosition
   return $ Annotate (SrcSpan posBegin posEnd) result
 
--- this one takes a parser of some AASTF...
--- but makes it parse AASTLoc instead
--- annotateLocation1 :: Parser (AASTF AASTLoc) -> Parser AASTLoc
--- annotateLocation1 = fmap annToAnnF . annotateLocation
+-- converts a parser of the AST into a parser of an annotated AST with locations
+annotateLocationAST :: Parser (AASTF AASTLoc) -> Parser AASTLoc
+annotateLocationAST = fmap fixAnnotation . annotateLocation
 
--- annToAnnF uses pattern synonyms
 
--- I don't know how patterns are used with functions
--- are they just replacements
--- also since AnnF doesn't exist
--- then why do we have this?
+-- and we use doubles inside
+-- but they are actually floats
+-- so we should just go with that
 
--- architectFloat :: Parser AASTLoc
--- architectFloat = MP.try (mkDoubleF <$> float)
+archFloat :: Parser AASTLoc
+archFloat = annotateLocationAST (MP.try (floatToAST <$> float) <?> "float")
+ where
+   floatToAST = ASTLiteral . LitFloat
 
--- mkFloatF . realToFrac <$>
 
--- mkFloatF :: Float -> NExprF a
--- mkFloatF = NConstant . NFloat
--- these are constructors!
--- mkFloatF = ASTLiteral . LitFloat
--- this takes a float to 
+-- -- making Architect expression trees
+-- -- otherwise we are using ASTLiteral . LitDouble
+-- mkDoubleF :: Double -> AASTF r
+-- mkDoubleF = ASTLiteral . LitFloat
 
--- nix only has floats
--- but we can do doubles easily
--- right...?
--- so what we are doing here?
+

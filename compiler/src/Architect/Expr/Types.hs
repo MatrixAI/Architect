@@ -41,7 +41,7 @@ data AASTF r = ASTLiteral ALit
 type AAST = Fix AASTF
 
 data ALit = LitInt Integer
-          | LitDouble Double
+          | LitFloat Double
           deriving (Show, Eq, Ord, Generic)
 
 data AStr r = StrQuoted [AText Text r]
@@ -67,31 +67,34 @@ data AText (s :: *) (r :: *) = TextPlain s
                              | TextAntiquoted r
                              deriving (Show, Eq, Ord, Generic, Generic1)
 
--- ok the above compiles
--- continue...
+-- -- ok the above compiles
+-- -- continue...
 
-data SrcSpan = SrcSpan
-  { spanBegin :: MPP.SourcePos
-  , spanEnd   :: MPP.SourcePos
-  } deriving (Show, Eq, Ord, Generic)
+-- data SrcSpan = SrcSpan
+--   { spanBegin :: MPP.SourcePos
+--   , spanEnd   :: MPP.SourcePos
+--   } deriving (Show, Eq, Ord, Generic)
 
--- generic annotation data type
--- that basically 2 data types
--- the first is the annotation, the second is the annotated
-data Annotate ann a = Annotate
-    { annotation :: ann
-    , annotated  :: a
-    }
-    deriving (Show, Eq, Ord, Generic, Generic1, Functor, Foldable, Traversable, Read)
+-- -- generic annotation data type
+-- -- that basically 2 data types
+-- -- the first is the annotation, the second is the annotated
+-- data Annotate ann a = Annotate
+--     { annotation :: ann
+--     , annotated  :: a
+--     }
+--     deriving (Show, Eq, Ord, Generic, Generic1, Functor, Foldable, Traversable, Read)
 
--- composition of Annotating with SrcSpan with the AASTF as the other functor
--- because AASTF and Annotate SrcSpan are both functors
--- we compose the functor, and also state that the internal element is going to be fixed
--- to have explicit recursion
-type AASTLocF = Compose (Annotate SrcSpan) AASTF
+-- -- composition of Annotating with SrcSpan with the AASTF as the other functor
+-- -- because AASTF and Annotate SrcSpan are both functors
+-- -- we compose the functor, and also state that the internal element is going to be fixed
+-- -- to have explicit recursion
+-- type AASTLocF = Compose (Annotate SrcSpan) AASTF
 
--- abstract syntax tree that is annotated with locations (or the span)
-type AASTLoc = Fix AASTLocF
+-- -- abstract syntax tree that is annotated with locations (or the span)
+-- type AASTLoc = Fix AASTLocF
+
+-- fixAnnotation :: Annotate ann (g (Fix (Compose (Annotate ann) g))) -> Fix (Compose (Annotate ann) g)
+-- fixAnnotation = Fix . Compose
 
 -- we don't have AnnF anymore
 -- because we inlined it into AASTLocF
@@ -103,10 +106,22 @@ type AASTLoc = Fix AASTLocF
 
 -- AnnE ann a = Fix (Compose (Ann ann a))
 
-annToAnnF :: Annotate ann (g (Fix (Compose (Annotate ann) g))) -> Fix (Compose (Annotate ann) g)
-annToAnnF (Annotate ann a) = Fix (Compose (Annotate ann a))
+
+-- we know that an annotation is a Annotate of a Fix of a Compose
+-- it's complicated yes...
+
+
+-- fixed annToAnnF
+
+-- would you say this unwraps or wraps
+-- it extracts out Annotate ann a
+-- only to rewrap it into Annotate ann a
+-- so it's a bit weird
+-- it's really wrapping the Fix and Compose again!
 
 -- without an AnnF type, our annotations here are just transformed into a fixed of a compose of the annotate
+
+-- the annToAnnF takes a type of Annotate ann (g Fix(Compose (Annotate ann) g))
 
 
 -- ok now we can have functions that now parse the AASTLoc
