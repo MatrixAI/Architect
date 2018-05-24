@@ -8,7 +8,8 @@ module Architect.Parser where
 
 import           Control.Applicative
 import           Control.Monad
-import           Data.Char                  (isAlpha, isDigit, isSpace)
+import qualified Data.Char as C
+import qualified Data.Maybe as M
 import           Data.Fix
 import qualified Data.HashSet               as HS
 import           Data.Text                  (Text)
@@ -36,6 +37,7 @@ import           GHC.Generics
 import           Control.DeepSeq
 
 import           Architect.Expr.Types
+import Architect.Annotations
 
 type Parser = MP.Parsec Void Text
 
@@ -84,8 +86,16 @@ identifier = lexeme $ MP.try $ do
     else return ident
   where
     identLetter :: Char -> Bool
-    identLetter x = isAlpha x || isDigit x || x == '_'
+    identLetter x = C.isAlpha x || C.isDigit x || x == '_'
 
+operator :: Parser Text
+operator = lexeme $ MP.try $ do
+  parens $ MP.takeWhile1P Nothing allowedSymbols
+  where
+    allowedSymbols s = (M.isNothing $ T.find (== s) disallowedSymbols)
+      && (C.isPunctuation s || C.isSymbol s)
+
+disallowedSymbols = "(),;[]`{}_:\"'"
 
 integer :: Parser Integer
 integer = lexeme MPL.decimal
@@ -105,7 +115,7 @@ comma = symbol ","
 -- so it's reserved
 reservedEnd :: Char -> Bool
 reservedEnd x =
-  isSpace x ||
+  C.isSpace x ||
   x == '{'  ||
   x == '('  ||
   x == '['  ||
@@ -123,11 +133,6 @@ reserved :: Text -> Parser ()
 reserved n = lexeme $ MP.try $
   MPC.string n *> MP.lookAhead (void (MPC.satisfy reservedEnd) <|> MP.eof)
 
-
--- so this annotates a parser
--- ok...
--- hmm this annotated position might be useful later not just for debugging but for manipulation as well...
--- I wonder if that's what they were thinking
 annotateLocation :: Parser a -> Parser (Annotate SrcSpan a)
 annotateLocation p = do
   posBegin <- MP.getPosition
@@ -139,20 +144,78 @@ annotateLocation p = do
 annotateLocationAST :: Parser (AASTF AASTLoc) -> Parser AASTLoc
 annotateLocationAST = fmap fixAnnotation . annotateLocation
 
-
--- and we use doubles inside
--- but they are actually floats
--- so we should just go with that
-
 archFloat :: Parser AASTLoc
-archFloat = annotateLocationAST (MP.try (floatToAST <$> float) <?> "float")
+archFloat = annotateLocationAST (floatToAST <$> float <?> "float")
  where
    floatToAST = ASTLiteral . LitFloat
 
+archInt :: Parser AASTLoc
+archInt = annotateLocationAST (intToAST <$> integer <?> "integer")
+ where
+   intToAST = ASTLiteral . LitInt
 
--- -- making Architect expression trees
--- -- otherwise we are using ASTLiteral . LitDouble
--- mkDoubleF :: Double -> AASTF r
--- mkDoubleF = ASTLiteral . LitFloat
+archName :: Parser AASTLoc
+archName = annotateLocationAST ((ASTName . NameAlpha) <$> identifier)
 
+archOperator :: Parser AASTLoc
+archOperator = annotateLocationAST ((ASTName . NameSymbol) <$> operator)
+
+
+-- the top level form appears to be used as the actual top level expression here
+-- it then sasys that with keywords
+-- i'm not sure about <+>
+-- it's a mplus operator
+-- monad plus operator...
+-- think of it like a monadic <|>
+-- I wonder why they didn't use <|>
+-- mzero is a parser that fails without consuming input
+
+-- anyway, we try keywords, then try lambdas, then try nixExprLoc
+-- keywords are let, if assert and with
+-- so here it is, the top level expression to be parsed!!!
+
+-- closely related to ALtenrative
+-- so its basically both monad and alternative
+
+-- what's this all about?
+nixToplevelForm :: Parser NExprLoc
+nixToplevelForm = keywords <+> nixLambda <+> nixExprLoc
+  where
+    keywords = nixLet <+> nixIf <+> nixAssert <+> nixWith
+
+nixParens :: Parser NExprLoc
+nixParens = parens nixToplevelForm <?> "parens"
+
+nixLet :: Parser NExprLoc
+nixLet = annotateLocation1 (reserved "let"
+    *> (letBody <+> letBinders)
+    <?> "let block")
+  where
+    letBinders = NLet
+        <$> nixBinders
+        <*> (reserved "in" *> nixToplevelForm)
+    -- Let expressions `let {..., body = ...}' are just desugared
+    -- into `(rec {..., body = ...}).body'.
+    letBody = (\x -> NSelect x (StaticKey "body" :| []) Nothing) <$> aset
+    aset = annotateLocation1 $ NRecSet <$> braces nixBinders
+
+nixIf :: Parser NExprLoc
+nixIf = annotateLocation1 (NIf
+     <$> (reserved "if" *> nixExprLoc)
+     <*> (reserved "then" *> nixToplevelForm)
+     <*> (reserved "else" *> nixToplevelForm)
+     <?> "if")
+
+nixExprLoc :: Parser NExprLoc
+nixExprLoc = makeExprParser nixTerm $ map (map snd) (nixOperators nixSelector)
+
+nixLambda :: Parser NExprLoc
+nixLambda = nAbs <$> annotateLocation (try argExpr) <*> nixToplevelForm
+
+-- we have some functions that can parse AASTLoc
+-- but we get an error when trying to use parseTest
+-- No instance for (Data.Functor.Classes.Show1 (Annotate SrcSpan))
+-- I think it has something to do with using the Compose functor
+-- doesn't matter
+-- we need to see a composion of these things
 

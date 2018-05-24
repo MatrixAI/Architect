@@ -9,6 +9,7 @@
 module Architect.Annotations where
 
 import           Architect.Expr.Types
+import           Control.DeepSeq      (NFData)
 import           Data.Fix             (Fix (..))
 import           Data.Functor.Compose (Compose (..))
 import           GHC.Generics
@@ -21,7 +22,17 @@ data Annotate ann a = Annotate
     { annotation :: ann
     , annotated  :: a
     }
-    deriving (Show, Eq, Ord, Generic, Generic1, Functor, Foldable, Traversable, Read)
+    deriving (
+      Show,
+      Read,
+      Eq,
+      Ord,
+      Generic,
+      Generic1,
+      Functor,
+      Foldable,
+      Traversable,
+      NFData)
 
 -- this is a generic annotation fix
 -- but we want to fix annotation to location
@@ -33,7 +44,7 @@ fixAnnotation = Fix . Compose
 data SrcSpan = SrcSpan
   { spanBegin :: MPP.SourcePos
   , spanEnd   :: MPP.SourcePos
-  } deriving (Show, Eq, Ord, Generic)
+  } deriving (Show, Eq, Ord, Generic, NFData)
 
 -- composition of Annotating with SrcSpan with the AASTF as the other functor
 -- because AASTF and Annotate SrcSpan are both functors
