@@ -256,6 +256,8 @@ A = Automaton {
 -- that's what I was going for
 -- but then our names cannot be arbitrary strings!
 
+-- also remember that we are talking about top level expressions... so we cannot have just arbitrary string keys, yet we allow lots of things to be keys!
+
 keyName :: Parser (AKey AASTLoc)
 keyName = dynamicKey <+> staticKey
   where
