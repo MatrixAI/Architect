@@ -398,3 +398,70 @@ But basically we get 2 functors composed together to contain our fix.
 As you can see it's just recursion again, but nested.
 
 And the annotation is really generic!
+
+---
+
+We are at the point where we can work on the Nix top level form.
+
+Discussions with megaparsec guy about the operator parser says that we can dynamically parameterise the parser, and change how the parser does things when we encounter fixity declarations.
+
+I'm starting to think that trying to build in overloadable operators is too complicated for now, and isn't the most important thing. So we'll we just ignore it for now. And just let functions defined by name.
+
+The other thing is that we need to specify our Architect top level form.
+
+The Nix top level form can be:
+
+```
+keywords or lambda or nixExprLoc
+where keywords can be let, if , assert or with
+```
+
+What is our top level? Our top level includes things like modules.
+
+In teh Haskell BNF grammar, it says that a module is module modid, exports, body.
+
+The body is:
+
+```
+body -> { impdecls; topdecls }
+      | { impldecls }
+      | { topdecls }
+
+topdecls -> type
+         |  data
+         |  newtype
+         | class
+         | instance
+         | default
+         | decl
+
+decl     -> gendecl
+          | (funlhs | pat) rhs
+```
+
+What's impldecls!?
+
+They are import declarations.
+
+We want to allow top level declarations of our automatons. Basically assigments!
+
+A gendecl is where you can have type signature and fixity or empty.
+
+Haskell defines `funlhs` and pattern and righthandside.
+
+```
+var -> varid | (varsym)
+varid -> (small {small | large | digit | '})
+varsym -> (symbol...)
+```
+
+So you can see that haskell does in fact do something similar here by refering to a var on the lhs:
+
+```
+funlhs -> var apat {apat}
+```
+
+And that the var can be a name, and then the varsym.
+
+We haven't even bothered with pattern matching yet!
+

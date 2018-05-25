@@ -25,6 +25,7 @@ import           Text.Megaparsec            ((<?>))
 
 -- haskell now has NonEmpty lists
 import qualified Data.List.NonEmpty         as NE
+import Data.List.NonEmpty ((:|))
 
 import           Data.Functor.Compose
 
@@ -159,6 +160,115 @@ archName = annotateLocationAST ((ASTName . NameAlpha) <$> identifier)
 
 archOperator :: Parser AASTLoc
 archOperator = annotateLocationAST ((ASTName . NameSymbol) <$> operator)
+
+-- the body of the entire file
+archBody :: Parser AASTLoc
+archBody = undefined
+
+-- archBinders similar to nixBinders
+-- needs to parse a number of bindings
+-- endBy means one or more namedVar separated by semi
+-- where semi is a semicolon
+-- err... we don't do that
+-- we have useful whitespace
+-- significant whitespace
+-- so how would we do this!?
+
+{-
+
+A = Automaton {
+
+
+}
+
+B = Automaton {
+
+}
+
+-}
+
+archBinders :: Parser [ABinding AASTLoc]
+archBinders = many binding
+  where
+    -- this needs to acquire 1 binding
+    binding = do
+      p <- MP.getPosition
+      Binding <$> (annotated <$> nixSelector)
+              <*> (equals *> nixToplevelForm)
+              <*> pure p
+              <?> "variable binding"
+
+-- AAttrPath is using NonEmpty lists
+-- we need to turn it into a non empty lists
+-- to do that we need to use :| as the consing operator
+nixSelector :: Parser (Annotate SrcSpan (AAttrPath AASTLoc))
+nixSelector = annotateLocation $ do
+    (x:xs) <- keyName `sepBy1` selDot
+    return $ x :| xs
+
+
+-- they are all related to each other
+-- we have keyName producing either a ydnamic key or a static key
+-- a static key is like 'a'
+-- a dynanmic key is like b
+-- b can resolve to something
+-- while 'a' resolves to just itself right...?
+-- wait "dynamic identifiers" refer to just a string
+-- or ${a} (a quoted string!?)
+-- so.. dynamic names are keys for the current dictionary or whatever
+-- but I wonder why they are called dynamic
+-- it should be the other way around
+-- we can have "literal" names or keys
+-- or we can have dynamic names or keys that are refering to something else
+
+-- { "a": 3 }
+-- { a: 3}
+-- which in nix means the same thing
+-- to actually interpolate you have to do:
+-- { ${a}: 3 }
+-- whaat
+-- also in Haskell we cannot do this
+-- it's also because in haskell you cannot just created nested dictionaries
+-- well you can, but that's a specific data structure
+-- you don't just get { a ... etc}
+-- you do get tuples
+-- and lists
+-- maps are explicitly defined
+-- our constructors in Automaton
+-- have:
+{-
+
+A = Automaton {
+  protocol = ProtocolSpec
+}
+
+-}
+
+-- so we do have special keys
+-- but they represent the same as record constructs
+
+-- so that means we don't have "..."
+-- but if we allow arbitrary string keys, then we are not creating a record
+-- so the question is that do we want to allow arbitrary records?
+-- or does everything have to be defined according to a type? A record type?
+
+-- we want to do it record style then...
+-- that's what I was going for
+-- but then our names cannot be arbitrary strings!
+
+keyName :: Parser (AKey AASTLoc)
+keyName = dynamicKey <+> staticKey
+  where
+    dynamicKey = KeyDynamic <$> nixAntiquoted nixString
+    staticKey = KeyStatic <$> archName
+
+
+-- this parsese annotated attribute path
+
+-- annotated is the record selector
+-- it is mapped to nixSelector
+-- which I guess should give us a name right!?
+
 
 
 -- the top level form appears to be used as the actual top level expression here
