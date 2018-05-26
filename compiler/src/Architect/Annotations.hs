@@ -5,6 +5,7 @@
 {-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE DeriveTraversable  #-}
 {-# LANGUAGE KindSignatures     #-}
+{-# LANGUAGE TemplateHaskell    #-}
 
 module Architect.Annotations where
 
@@ -14,6 +15,8 @@ import           Data.Fix             (Fix (..))
 import           Data.Functor.Compose (Compose (..))
 import           GHC.Generics
 import qualified Text.Megaparsec.Pos  as MPP
+import Text.Read.Deriving
+import Text.Show.Deriving
 
 -- generic annotation data type
 -- that basically 2 data types
@@ -33,6 +36,12 @@ data Annotate ann a = Annotate
       Foldable,
       Traversable,
       NFData)
+
+-- we make annotations showable as well
+-- it's quite weird that doing this makes the deriving more complicated
+-- deriving-compat + transformers are being used for 
+$(deriveShow1 ''Annotate)
+$(deriveShow2 ''Annotate)
 
 -- this is a generic annotation fix
 -- but we want to fix annotation to location

@@ -25,7 +25,7 @@ import           Text.Megaparsec            ((<?>))
 
 -- haskell now has NonEmpty lists
 import qualified Data.List.NonEmpty         as NE
-import Data.List.NonEmpty ((:|))
+import Data.List.NonEmpty (NonEmpty(..))
 
 import           Data.Functor.Compose
 
@@ -161,173 +161,172 @@ archName = annotateLocationAST ((ASTName . NameAlpha) <$> identifier)
 archOperator :: Parser AASTLoc
 archOperator = annotateLocationAST ((ASTName . NameSymbol) <$> operator)
 
--- the body of the entire file
-archBody :: Parser AASTLoc
-archBody = undefined
 
--- archBinders similar to nixBinders
--- needs to parse a number of bindings
--- endBy means one or more namedVar separated by semi
--- where semi is a semicolon
--- err... we don't do that
--- we have useful whitespace
--- significant whitespace
--- so how would we do this!?
+-- to test archToplevel
+-- we need to have archLet
+-- and archIf
+-- and archLamda
+-- these are all recursive
+-- so that's why we sort of needed it to work on the outset!
+
+-- we are going to remove the the selector
+-- because we don't know
+archTopLevel :: Parser AASTLoc
+-- archTopLevel = keywords <+> archLambda
+--   where
+--     keywords = archLet <+> archIf
+
+archTopLevel = archLet <|> archInt
+
+-- the way it works to actually resolve anything
+-- is nixExprLoc
+-- but if we don't have a table like that
+-- then we just need to resolve to some sort of operator
+-- still not sure why <|> or `mplus`
+-- so we need to resolve to an operator
+
+-- for some reason parseTest doesn't work on these things
+
+-- right now let in let in let in... etc
+-- but we need to resolve to something!
+-- but we are not saying what it can be..
+
 
 {-
+let BINDINGS in
+-}
+-- this needs archBinders and archToplevel
+archLet :: Parser AASTLoc
+archLet = annotateLocationAST (reserved "let" *> letBinders <?> "let block")
+  where
+    letBinders = ASTLet <$> archBinders <*> (reserved "in" *> archTopLevel)
 
-A = Automaton {
+-- it is possible to bind nothing!
+-- then it's a noop!
+
+-- our binding will need semiclon
+{-
+
+all are allowed?
+so it is optional
+but significant whitespace is sort of important requiring indentation
+to add a new one...
 
 
-}
+let
+  a = blah
+  b = blah
 
-B = Automaton {
-
-}
-
+let a = blah; b = blah; in ...
+let a = blah; b = blah in ...
 -}
 
+semi      = symbol ";"
+
 archBinders :: Parser [ABinding AASTLoc]
-archBinders = many binding
+archBinders = archBinding `MP.endBy` semi
+
+-- Binding (AKey r) r MPP.SourcePos
+-- a binding takes the name, the value it is bound to
+-- and then the position
+-- so that's hwy we have *>, which means we have a equal sign
+-- but then we have the top level again!
+-- and then we apply to the position!
+-- note that *> discards the left, while <*> keeps the left in some way..
+
+archBinding :: Parser (ABinding AASTLoc)
+archBinding = do
+  -- a binding has a position
+  p <- MP.getPosition
+  Binding <$> (keyStatic) -- keyname
+          <*> (equals *> archTopLevel)   -- body that we are bound to
+          <*> pure p
+          <?> "variable binding!"
   where
-    -- this needs to acquire 1 binding
-    binding = do
-      p <- MP.getPosition
-      Binding <$> (annotated <$> nixSelector)
-              <*> (equals *> nixToplevelForm)
-              <*> pure p
-              <?> "variable binding"
+    keyStatic = KeyStatic <$> ((NameAlpha <$> identifier) <|> (NameSymbol <$> operator)) -- this is meant to work
+
+
+-- <+> is mplus
+-- well <|> in ParsecT is mplus as well
+-- so they are the same!!!
+
+-- it's mplus
+    -- keyDynamic = KeyDynamic <$> archAntiquoted archString
+
+-- KeyStatic must take a AName
+-- AName may be a NameAlpha or NameSymbol
+-- identifier currently takes a Text
+-- we must convert depending on what it is
+-- operator or identifier
+
+
+-- bindings can be a stirng keys or static name keys
+-- so we need archAntiquoted now
+
+-- nixAntiquoted :: Parser a -> Parser (Antiquoted a NExprLoc)
+-- nixAntiquoted p =
+--         Antiquoted <$> (antiStart *> nixToplevelForm <* symbol "}")
+--     <+> Plain <$> p
+--     <?> "anti-quotation"
+
+-- we are just going to test without the dynamic keys first
+
+
+
+-- can a binding be a key?
+-- also how do we differentiate it?
+
+-- so do we still the need the annotated?
+-- nope I don't think so, since it extracts it out
+
+-- the above needs archSelector
+-- so what is archSelector
+-- it represents a name
+-- but we don't bother with that here..
+
+
+-- a selector here shouldn't matter
+-- since we just want a name
+-- here it's saying that we can have a name
+-- that's sort of weird
+-- we want an annotated archSelector
+-- the anntoated takes out
+
+-- Binding <$> (annotated <$> archSelector)
+-- archSelector :: Parser (Annotate SrcSpan (AAttrPath AASTLoc))
+-- annotated :: (AATrrPath AASTLoc)
+-- the annotated extracts that out of the Annotate SrcSpan
+-- then Binding works on that
+
+-- Binding works on attribute paths
 
 -- AAttrPath is using NonEmpty lists
 -- we need to turn it into a non empty lists
 -- to do that we need to use :| as the consing operator
-nixSelector :: Parser (Annotate SrcSpan (AAttrPath AASTLoc))
-nixSelector = annotateLocation $ do
-    (x:xs) <- keyName `sepBy1` selDot
-    return $ x :| xs
+-- archSelector :: Parser (Annotate SrcSpan (AAttrPath AASTLoc))
+-- archSelector = annotateLocation $ do
+--     (x:xs) <- keyName `sepBy1` selDot
+--     return $ x :| xs
 
+-- keyName :: Parser (AKey AASTLoc)
+-- keyName = KeyStatic <$> archName
 
--- they are all related to each other
--- we have keyName producing either a ydnamic key or a static key
--- a static key is like 'a'
--- a dynanmic key is like b
--- b can resolve to something
--- while 'a' resolves to just itself right...?
--- wait "dynamic identifiers" refer to just a string
--- or ${a} (a quoted string!?)
--- so.. dynamic names are keys for the current dictionary or whatever
--- but I wonder why they are called dynamic
--- it should be the other way around
--- we can have "literal" names or keys
--- or we can have dynamic names or keys that are refering to something else
+-- selDot :: Parser ()
+-- selDot = symbol "."
 
--- { "a": 3 }
--- { a: 3}
--- which in nix means the same thing
--- to actually interpolate you have to do:
--- { ${a}: 3 }
--- whaat
--- also in Haskell we cannot do this
--- it's also because in haskell you cannot just created nested dictionaries
--- well you can, but that's a specific data structure
--- you don't just get { a ... etc}
--- you do get tuples
--- and lists
--- maps are explicitly defined
--- our constructors in Automaton
--- have:
-{-
+-- what is selDot all about?
+-- why not followed by a path...
+-- we don't have paths
 
-A = Automaton {
-  protocol = ProtocolSpec
-}
+-- nixIf :: Parser NExprLoc
+-- nixIf = annotateLocation1 (NIf
+--      <$> (reserved "if" *> nixExprLoc)
+--      <*> (reserved "then" *> nixToplevelForm)
+--      <*> (reserved "else" *> nixToplevelForm)
+--      <?> "if")
 
--}
+-- nixExprLoc :: Parser NExprLoc
+-- nixExprLoc = makeExprParser nixTerm $ map (map snd) (nixOperators nixSelector)
 
--- so we do have special keys
--- but they represent the same as record constructs
-
--- so that means we don't have "..."
--- but if we allow arbitrary string keys, then we are not creating a record
--- so the question is that do we want to allow arbitrary records?
--- or does everything have to be defined according to a type? A record type?
-
--- we want to do it record style then...
--- that's what I was going for
--- but then our names cannot be arbitrary strings!
-
--- also remember that we are talking about top level expressions... so we cannot have just arbitrary string keys, yet we allow lots of things to be keys!
-
-keyName :: Parser (AKey AASTLoc)
-keyName = dynamicKey <+> staticKey
-  where
-    dynamicKey = KeyDynamic <$> nixAntiquoted nixString
-    staticKey = KeyStatic <$> archName
-
-
--- this parsese annotated attribute path
-
--- annotated is the record selector
--- it is mapped to nixSelector
--- which I guess should give us a name right!?
-
-
-
--- the top level form appears to be used as the actual top level expression here
--- it then sasys that with keywords
--- i'm not sure about <+>
--- it's a mplus operator
--- monad plus operator...
--- think of it like a monadic <|>
--- I wonder why they didn't use <|>
--- mzero is a parser that fails without consuming input
-
--- anyway, we try keywords, then try lambdas, then try nixExprLoc
--- keywords are let, if assert and with
--- so here it is, the top level expression to be parsed!!!
-
--- closely related to ALtenrative
--- so its basically both monad and alternative
-
--- what's this all about?
-nixToplevelForm :: Parser NExprLoc
-nixToplevelForm = keywords <+> nixLambda <+> nixExprLoc
-  where
-    keywords = nixLet <+> nixIf <+> nixAssert <+> nixWith
-
-nixParens :: Parser NExprLoc
-nixParens = parens nixToplevelForm <?> "parens"
-
-nixLet :: Parser NExprLoc
-nixLet = annotateLocation1 (reserved "let"
-    *> (letBody <+> letBinders)
-    <?> "let block")
-  where
-    letBinders = NLet
-        <$> nixBinders
-        <*> (reserved "in" *> nixToplevelForm)
-    -- Let expressions `let {..., body = ...}' are just desugared
-    -- into `(rec {..., body = ...}).body'.
-    letBody = (\x -> NSelect x (StaticKey "body" :| []) Nothing) <$> aset
-    aset = annotateLocation1 $ NRecSet <$> braces nixBinders
-
-nixIf :: Parser NExprLoc
-nixIf = annotateLocation1 (NIf
-     <$> (reserved "if" *> nixExprLoc)
-     <*> (reserved "then" *> nixToplevelForm)
-     <*> (reserved "else" *> nixToplevelForm)
-     <?> "if")
-
-nixExprLoc :: Parser NExprLoc
-nixExprLoc = makeExprParser nixTerm $ map (map snd) (nixOperators nixSelector)
-
-nixLambda :: Parser NExprLoc
-nixLambda = nAbs <$> annotateLocation (try argExpr) <*> nixToplevelForm
-
--- we have some functions that can parse AASTLoc
--- but we get an error when trying to use parseTest
--- No instance for (Data.Functor.Classes.Show1 (Annotate SrcSpan))
--- I think it has something to do with using the Compose functor
--- doesn't matter
--- we need to see a composion of these things
-
+-- nixLambda :: Parser NExprLoc
+-- nixLambda = nAbs <$> annotateLocation (try argExpr) <*> nixToplevelForm

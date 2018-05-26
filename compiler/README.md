@@ -465,3 +465,87 @@ And that the var can be a name, and then the varsym.
 
 We haven't even bothered with pattern matching yet!
 
+---
+
+So I don't think we will have keys that are based on a string.
+
+```
+keyname :: parser (nkeyname nexprloc)
+keyname = dynamickey <+> statickey where
+  statickey = statickey <$> identifier
+  dynamickey = dynamickey <$> nixantiquoted nixstring
+
+identifier = lexeme $ try $ do
+    ident <- cons <$> satisfy (\x -> isAlpha x || x == '_')
+                 <*> takeWhileP Nothing identLetter
+    guard (not (ident `HashSet.member` reservedNames))
+    return ident
+  where
+    identLetter x = isAlpha x || isDigit x || x == '_' || x == '\'' || x == '-'
+```
+
+A staticKey is a one that matches against an identifier.
+
+An identifier you can see is a just a name of variable.
+
+But a dynamic key is a string.
+
+So we don't have dynamic keys in this language. At least not at the moment.
+
+We are just going to focus on getting static keys!
+
+So we are just going to do:
+
+```
+identifier :: Parser Text
+identifier = lexeme $ MP.try $ do
+  ident <- T.cons
+    <$> (MPC.lowerChar <|> MPC.char '_')
+    <*> MP.takeWhileP Nothing identLetter
+  if HS.member ident reservedIdentifiers
+    then fail $ "Cannot use reserved identifier: " ++ show ident
+    else return ident
+  where
+    identLetter :: Char -> Bool
+    identLetter x = C.isAlpha x || C.isDigit x || x == '_'
+
+archName :: Parser AASTLoc
+archName = annotateLocationAST ((ASTName . NameAlpha) <$> identifier)
+
+nixSelector :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
+nixSelector = annotateLocation $ do
+    (x:xs) <- keyName `sepBy1` selDot
+    return $ x :| xs
+
+keyName :: Parser (AKey AASTLoc)
+keyName = KeyStatic <$> archName
+```
+
+So we have a key... but there is a:
+
+```
+data AKey r = KeyDynamic (AText (AStr r) r)
+            | KeyStatic AName
+            deriving (Show, Eq, Ord, Generic)
+```
+
+So are we throwing away this `KeyDynamic`?
+
+
+So remember that we have a `nixSelector` and we are generating names.
+
+So the idea is that at the top level we are aligning names of module to be similar to an attribute name. That only really works if we keep a consistent attribute set along the way, and expect that the thing to be recursive.
+
+So at the top level module, we can assume the top level is a module!
+
+But wait nix files can also be just expressions. Just a function, no need to be be a top level module. So I think if we want our files to be individual possible expressions, then we cannot say that everything has to be an attribute set. But why not, why not allow just a function!?
+
+Ok let's say we allow this. Then what is `Automaton`? It is not just a constructor, it's a actually a function! And this function takes an attribute set. Oke so we have types in our attribute set!
+
+Ok let's go with the same top level expression system.
+
+The `reserved` tries to match a string and then prevent `reservedEnd`. Which appear to be separators of some sort. So the idea is that a reserved as to end there.. But how does that even work!?
+
+---
+
+It appears that `Data.Functor.Classes` from transformers and `derive*` functions from deriving-compat are used together in order to help derive Prelude typeclasses for the type-level fix data structures, specifically `NExprF` (I like to think that this the AST).

@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 20d02ab366c80f2b0c1b10bb00b4971188df081b92b47f43b0338ebe2fbf3849
+-- hash: f14a92b095c19a8af0dd76ef431c126b13e32a69f59412a3dcc02d76d27de475
 
 name:           architect-compiler
 version:        0.0.1
@@ -29,6 +29,7 @@ library
     , bytestring >=0.10 && <0.11
     , data-fix >=0.2 && <0.3
     , deepseq >=1.4 && <1.5
+    , deriving-compat >=0.4 && <0.5
     , ghc >=7.8 && <8.4
     , ghc-boot
     , ghc-paths

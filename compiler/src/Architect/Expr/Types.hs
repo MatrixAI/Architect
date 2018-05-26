@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFoldable     #-}
@@ -6,6 +7,21 @@
 {-# LANGUAGE DeriveTraversable  #-}
 {-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE OverloadedStrings  #-}
+
+-- we need TemplateHaskell and use the Text.Show.Deriving
+-- then we need to use $(deriveShow1 ''AASTF)
+-- what the hell!?
+{-# LANGUAGE TemplateHaskell #-}
+
+-- so if you use a type level fix
+-- the TF can be deriving Show
+-- but after you do type T = Fix TF
+-- then when you try to show it, you actually need a show instance for it
+-- apparently it's called Show1
+-- Show1 f => Show (Fix f)
+-- so... we need Show1 for the TF
+-- to do this, we need to derive Show1!
+
 
 module Architect.Expr.Types where
 
@@ -30,6 +46,19 @@ import qualified Text.Megaparsec.Char.Lexer as MPL
 import qualified Text.Megaparsec.Error      as MPE
 import qualified Text.Megaparsec.Pos        as MPP
 
+-- this brings in classes like Show1
+-- for lifting Prelude classes to unary type constructors
+-- basically useful for type level Fix data structures
+-- from the transformers package
+import           Data.Functor.Classes
+
+-- Show1 and Show2
+-- not sure how that's supposed to work
+
+-- these are from derive-compat for autoderiving stuff the transformers classes
+import           Text.Read.Deriving
+import           Text.Show.Deriving
+
 data AASTF r = ASTLiteral ALit
              | ASTString (AStr r)
              | ASTName AName
@@ -37,6 +66,8 @@ data AASTF r = ASTLiteral ALit
              | ASTAttrSet [ABinding r]
              | ASTLet [ABinding r] r
              | ASTIf r r r
+             deriving (Show, Eq, Ord, Generic, Generic1)
+
 
 type AAST = Fix AASTF
 
@@ -52,20 +83,104 @@ data AName = NameAlpha Text
            | NameSymbol Text
            deriving (Show, Eq, Ord, Generic)
 
-data ABinding r = Binding (AAttrPath r) r MPP.SourcePos
+-- I'm thinking it doesn't make sense to bind to a AAttrPath
+-- so I'm going to change that
+-- AAttrPath is AKey
+-- AKey is a name of a key...
+-- so we are just going to change to just the AKey
+data ABinding r = Binding (AKey r) r MPP.SourcePos
                 deriving (Show, Eq, Ord, Generic, Generic1)
+
+-- so a binding is just a key
+-- data ABinding r = Binding (AAttrPath r) r MPP.SourcePos
+--                 deriving (Show, Eq, Ord, Generic, Generic1)
 
 type AAttrPath r = NE.NonEmpty (AKey r)
 
+-- are we saying that keys can be dynamic or static
+-- static names are just variable names
+-- but otherwise they can be string names
+-- I'm not sure what that's supposed to mean!
 data AKey r = KeyDynamic (AText (AStr r) r)
             | KeyStatic AName
             deriving (Show, Eq, Ord, Generic)
+
+-- I'm not sure, but this looks equivalent
+
+-- data NKeyName r
+--   = DynamicKey !(Antiquoted (NString r) r)
+--   | StaticKey !VarName
+--   deriving (Eq, Ord, Generic, Typeable, Data, Show, Read, NFData,
+--             Hashable)
 
 
 data AText (s :: *) (r :: *) = TextPlain s
                              | TextEscapedNewline
                              | TextAntiquoted r
                              deriving (Show, Eq, Ord, Generic, Generic1)
+
+-- we need to derive Show1
+-- so that Fix works
+-- this is template haskell using the deriving-compat package
+$(deriveShow1 ''AASTF)
+$(deriveShow1 ''AStr)
+$(deriveShow1 ''AText)
+$(deriveShow2 ''AText)
+$(deriveShow1 ''ABinding)
+
+-- there's no documentation for Data.Functor.Classes for the latest transformers package
+instance Show1 AKey where
+  liftShowsPrec sp sl p = \case
+    KeyStatic t -> showsUnaryWith showsPrec "KeyStatic" p t
+    KeyDynamic a ->
+      showsUnaryWith
+      (liftShowsPrec2
+       (liftShowsPrec sp sl)
+       (liftShowList sp sl)
+       sp
+       sl)
+      "KeyDynamic"
+      p
+      a
+
+-- ok this is BASICAlly... a show for instance for the type level Fix of AASTF
+-- where we can now "show" the AText
+
+-- we need it for the annotations as well
+
+-- Show1 docs says that it lifts Show class to unary type constructors
+-- why does this matter?
+-- because you don't do Show Type
+-- but Show (Type a)
+-- whats the significance!?
+
+-- instance Show a => Show (Maybe a)
+-- is already defined
+-- instance Show1 Maybe where showsPrec1
+-- wait... this mayes "Maybe" a Showable type
+-- not Maybe a
+-- why?
+
+-- something to do with recursion schemes
+
+-- recursion scehems are just as essential to idiomatic functional programming as `for` and `while` are to idiomatic imperative programming
+
+
+
+-- we cannot auto derive Show1 for AKey
+-- somehow because that `r` occurs twice
+-- for KeyDynamic
+
+-- lifShowsPrec
+-- remember that showsPrec
+-- is what you need to do for show
+-- the Prec is for precedence
+
+
+-- oh it's not automatic!
+
+-- there's still an error about how AKey doesn't have a Show1 instance
+-- but AKey is part of
 
 -- -- ok the above compiles
 -- -- continue...
@@ -165,3 +280,5 @@ data AText (s :: *) (r :: *) = TextPlain s
 -- then s for the input of the source
 -- the either then applies success or failure on it
 
+-- this is deriveShow1
+-- this is deriving it
