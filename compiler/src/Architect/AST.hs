@@ -9,8 +9,9 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE TemplateHaskell    #-}
 
-module Architect.Expr.Types where
+module Architect.AST where
 
+-- these imports I haven't figured out yet
 -- import           Control.DeepSeq
 -- import           Data.Data
 import           Data.Fix                   (Fix)
@@ -30,53 +31,63 @@ import qualified Text.Megaparsec.Pos        as MPP
 import qualified Text.Read.Deriving         as RD
 import qualified Text.Show.Deriving         as SD
 
-data AASTF r = ASTLiteral ALit
-             | ASTString (AStr r)
-             | ASTName AName
-             | ASTList [r]
-             | ASTAttrSet [ABinding r]
-             | ASTLet [ABinding r] r
-             | ASTIf r r r
-             deriving (Show, Eq, Ord, Functor, Generic, Generic1)
+-- | Abstract Syntax Tree Functor to achieve f-algebra style type-level fix
+-- otherwise known as "recursion-scheme"
+data ASTF r = ASTLiteral Lit
+            | ASTString (Str r)
+            | ASTName Name
+            | ASTList [r]
+            | ASTAttrSet [Binding r]
+            | ASTLet [Binding r] r
+            | ASTIf r r r
+            | ASTSelect r (KeyPath r)
+            deriving (Show, Eq, Ord, Functor, Generic, Generic1)
 
+type AST = Fix ASTF
 
-type AAST = Fix AASTF
+data Binding r = Binding (Key r) r MPP.SourcePos
+               deriving (Show, Eq, Ord, Functor, Generic, Generic1)
 
-data ALit = LitInt Integer
-          | LitFloat Double
-          deriving (Show, Eq, Ord, Generic)
+data Lit = LitInt Integer
+         | LitFloat Double
+         deriving (Show, Eq, Ord, Generic)
 
-data AStr r = StrQuoted [AText Text r]
-            | StrIndented Int [AText Text r]
-            deriving (Show, Eq, Ord, Functor, Traversable, Foldable, Generic)
+data Str r = StrQuoted [Quote Text r]
+           | StrIndented Int [Quote Text r]
+           deriving (Show, Eq, Ord, Functor, Foldable, Traversable, Generic)
 
-data AName = NameAlpha Text
-           | NameSymbol Text
-           deriving (Show, Eq, Ord, Generic)
-
-data ABinding r = Binding (AKey r) r MPP.SourcePos
-                deriving (Show, Eq, Ord, Functor, Generic, Generic1)
-
-type AAttrPath r = NE.NonEmpty (AKey r)
-
-
--- AText is actually about antiquoted
--- I'm thinking of changing the name to antiquoted so we are sure that this is really it
-data AText (s :: *) (r :: *) = TextPlain s
-                             | TextEscapedNewline
-                             | TextAntiquoted r
+-- | Quotes are the actual text
+-- It can be newlines
+-- A plain text
+-- or Antiquoted text
+-- Note that Str encapsulates Quote, but specifies s to be a string
+-- Whereas a dynamic key asks for a quote, but specifies s to be a Str
+data Quote (s :: *) (r :: *) = QuoteEscapedNewline
+                             | QuotePlain s
+                             | QuoteAntiquoted r
                              deriving (
                                Show,
                                Eq,
                                Ord,
                                Functor,
-                               Traversable,
                                Foldable,
+                               Traversable,
                                Generic,
                                Generic1
                              )
 
--- | AKey is a name that can appear on the left hande side of an equals sign.
+-- | Names are just variable names.
+-- Names are not the same as keys, because keys can be string keys
+-- Or antiquoted strings
+data Name = NameAlpha Text
+          | NameSymbol Text
+          deriving (Show, Eq, Ord, Generic)
+
+-- | KeyPath is a non empty list of keys.
+-- Something like keya.keyb.keyc
+type KeyPath r = NE.NonEmpty (Key r)
+
+-- | Key is a name that can appear on the left hande side of an equals sign.
 -- It can be assignment, but also bindings into an attribute set.
 -- Because this type uses the recursion type @r@ multiple times.
 -- We have to perform manual derivations of many type classes.
@@ -88,29 +99,29 @@ data AText (s :: *) (r :: *) = TextPlain s
 -- It can be literal strings or quoted strings.
 -- An antiquote, is not a quote that is embeding something else.
 -- But antiquotes, saying that what ever is in it must be substituted with a binding.
--- `AText` can be antiquoted.
+-- `Quote` can be antiquoted.
 --
 -- This was derived from Nix's keys. Which are used for let bindings and
 -- attribute sets. Which allows the usage of string keys, literal names,
 -- and antiquoted strings.
-data AKey r = KeyStatic AName
-            | KeyDynamic (AText (AStr r) r)
-            deriving (Show, Eq, Ord, Generic)
+data Key r = KeyStatic Name
+           | KeyDynamic (Quote (Str r) r)
+           deriving (Show, Eq, Ord, Generic)
 
-instance Functor AKey where
+instance Functor Key where
   fmap = T.fmapDefault
 
-instance Traversable AKey where
+instance Traversable Key where
   traverse f = \case
-    KeyDynamic (TextPlain str)    -> KeyDynamic . TextPlain <$> T.traverse f str
-    KeyDynamic TextEscapedNewline -> pure $ KeyDynamic TextEscapedNewline
-    KeyDynamic (TextAntiquoted e) -> KeyDynamic . TextAntiquoted <$> f e
-    KeyStatic key                 -> pure (KeyStatic key)
+    KeyDynamic (QuotePlain str)    -> KeyDynamic . QuotePlain <$> T.traverse f str
+    KeyDynamic QuoteEscapedNewline -> pure $ KeyDynamic QuoteEscapedNewline
+    KeyDynamic (QuoteAntiquoted e) -> KeyDynamic . QuoteAntiquoted <$> f e
+    KeyStatic key                  -> pure (KeyStatic key)
 
-instance Foldable AKey where
+instance Foldable Key where
   foldMap = T.foldMapDefault
 
-instance Show1 AKey where
+instance Show1 Key where
   liftShowsPrec sp sl p = \case
     KeyStatic t  -> FC.showsUnaryWith showsPrec "KeyStatic" p t
     KeyDynamic a -> FC.showsUnaryWith
@@ -121,8 +132,8 @@ instance Show1 AKey where
 -- using derive-compat must come at the end
 -- the order matters here
 
-$(SD.deriveShow1 ''AASTF)
-$(SD.deriveShow1 ''AStr)
-$(SD.deriveShow1 ''AText)
-$(SD.deriveShow2 ''AText)
-$(SD.deriveShow1 ''ABinding)
+$(SD.deriveShow1 ''ASTF)
+$(SD.deriveShow1 ''Binding)
+$(SD.deriveShow1 ''Str)
+$(SD.deriveShow1 ''Quote)
+$(SD.deriveShow2 ''Quote)

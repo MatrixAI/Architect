@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f14a92b095c19a8af0dd76ef431c126b13e32a69f59412a3dcc02d76d27de475
+-- hash: 213444e8a35678397b982114ae99f45a45f1c053a82044bffed9d272e1397127
 
 name:           architect-compiler
 version:        0.0.1
@@ -18,8 +18,8 @@ library
   exposed-modules:
       Architect.Compiler
   other-modules:
-      Architect.Annotations
-      Architect.Expr.Types
+      Architect.AST
+      Architect.ASTAnnotate
       Architect.Parser
       Paths_architect_compiler
   hs-source-dirs:

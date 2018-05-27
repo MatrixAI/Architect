@@ -252,3 +252,6 @@ evaluate = cata $ \case
   ASTLiteral (LitInt n) -> n
   ASTLiteral (LitFloat n) -> round n
   _ -> 0
+
+-- evaluate it like
+-- evaluate $ Fix $ ASTLiteral $ LitInt 1

@@ -572,3 +572,13 @@ I'm going to change AASTF to just ASTF. And a comment that ASTF is a functor.
 Traversable class represents functors that can be traversed left to right.
 
 It requires the type to be both a functor and a foldable. Functor meing mappable. AMd foldable meaning reducible (so would that mean its finite to some extent?), well yea...
+
+---
+
+Should pretty print this to see what the evaluation is giving me.
+
+This is parsing an AST!
+
+```
+Fix (Compose (Annotate {annotation = SrcSpan {spanBegin = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 1}, spanEnd = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 16}}, annotated = ASTLet [Binding (KeyStatic (NameAlpha "a")) (Fix (Compose (Annotate {annotation = SrcSpan {spanBegin = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 9}, spanEnd = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 10}}, annotated = ASTLiteral (LitInt 3)}))) (SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 5})] (Fix (Compose (Annotate {annotation = SrcSpan {spanBegin = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 15}, spanEnd = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 16}}, annotated = ASTLiteral (LitInt 3)})))}))
+```
