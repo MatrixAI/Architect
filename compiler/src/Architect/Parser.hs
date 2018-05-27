@@ -221,6 +221,175 @@ archIf = annotateLocationAST
 archExpr :: Parser ASTA.ASTLoc
 archExpr = undefined
 
+-- figuring out the expresssion system:....
+
+-- a term is anything that isn't an operator
+-- but what about straightforward function application?
+-- and terms that are just symbols?
+-- you allowed those to be names
+-- so % is a valid name as a key
+-- in that case % couldn't be an operator, unless it was spaced out
+
+nixExprLoc :: Parser NExprLoc
+nixExprLoc = makeExprParser nixTerm $ map (map snd) (nixOperators nixSelector)
+
+-- pathChar is something that is Char -> Bool
+-- apparently anything that can be in a path!
+-- or we have those variants of braces
+-- depending on the brace, we expect different data structures
+-- nixSelect for parantheses
+-- what is nixSelect it's some sort of attribute path
+
+-- this is a lookahead, which means it doesn't consume anything
+
+nixTerm :: Parser NExprLoc
+nixTerm = do
+    c <- try $ lookAhead $ satisfy $ \x ->
+        pathChar x ||
+        x == '(' ||
+        x == '{' ||
+        x == '[' ||
+        x == '<' ||
+        x == '/' ||
+        x == '"' ||
+        x == '\''
+    case c of
+        '('  -> nixSelect nixParens
+        '{'  -> nixSelect nixSet
+        '['  -> nixList
+        '<'  -> nixSPath
+        '/'  -> nixPath
+        '"'  -> nixStringExpr
+        '\'' -> nixStringExpr
+        _    -> msum $
+            [ nixSelect nixSet | c == 'r' ] ++
+            [ nixPath | pathChar c ] ++
+            if isDigit c
+            then [ nixFloat
+                 , nixInt ]
+            else [ nixUri | isAlpha c ] ++
+                 [ nixBool | c == 't' || c == 'f' ] ++
+                 [ nixNull | c == 'n' ] ++
+                 [ nixSelect nixSym ]
+
+
+-- WHITESPACE is an operator as well!
+-- that's what the NBinaryDef!
+-- it is in this operator table
+
+data Associativity = AssocNone | AssocLeft | AssocRight
+  deriving (Show, Eq, Ord, Generic, NFData)
+
+-- this was in Annotated.hs
+-- what is this supposed to mean?
+-- AnnE is a bidirectional pattern
+-- <>
+-- this does some sort of joining...
+-- why?
+-- <> is Semigroup joining operator
+-- we are joining the source positions some how
+-- well... start becomes the biggest start, and end is the biggest end
+-- and so we then have... NBinary NApp e1 e2
+-- what is the oint of this!?
+-- it is just to join 2 Annotated AST's locations into 1 annotated AST!?
+-- InfixL and InfixR comes from Megaparsec!
+nApp :: NExprLoc -> NExprLoc -> NExprLoc
+nApp e1@(AnnE s1 _) e2@(AnnE s2 _) = AnnE (s1 <> s2) (NBinary NApp e1 e2)
+nApp _ _ = error "nApp: unexpected"
+
+archOperators = [
+  [
+    (
+      NBinaryDef " " OpApply AssocLeft,
+      InfixL $ nApp <$ symbol ""
+    )
+  ]
+                ]
+
+
+nixOperators
+    :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
+    -> [[(NOperatorDef, Operator Parser NExprLoc)]]
+nixOperators selector =
+  [ -- This is not parsed here, even though technically it's part of the
+    -- expression table. The problem is that in some cases, such as list
+    -- membership, it's also a term. And since terms are effectively the
+    -- highest precedence entities parsed by the expression parser, it ends up
+    -- working out that we parse them as a kind of "meta-term".
+
+    -- {-  1 -} [ (NSpecialDef "." NSelectOp NAssocLeft,
+    --             Postfix $ do
+    --                    sel <- seldot *> selector
+    --                    mor <- optional (reserved "or" *> term)
+    --                    return $ \x -> nSelectLoc x sel mor) ]
+
+    {-  2 -} [ (NBinaryDef " " NApp NAssocLeft,
+                -- Thanks to Brent Yorgey for showing me this trick!
+                InfixL $ nApp <$ symbol "") ]
+  , {-  3 -} [ prefix  "-"  NNeg ]
+  , {-  4 -} [ (NSpecialDef "?" NHasAttrOp NAssocLeft,
+                Postfix $ symbol "?" *> (flip nHasAttr <$> selector)) ]
+  , {-  5 -} [ binaryR "++" NConcat ]
+  , {-  6 -} [ binaryL "*"  NMult
+             , binaryL "/"  NDiv ]
+  , {-  7 -} [ binaryL "+"  NPlus
+             , binaryL "-"  NMinus ]
+  , {-  8 -} [ prefix  "!"  NNot ]
+  , {-  9 -} [ binaryR "//" NUpdate ]
+  , {- 10 -} [ binaryL "<"  NLt
+             , binaryL ">"  NGt
+             , binaryL "<=" NLte
+             , binaryL ">=" NGte ]
+  , {- 11 -} [ binaryN "==" NEq
+             , binaryN "!=" NNEq ]
+  , {- 12 -} [ binaryL "&&" NAnd ]
+  , {- 13 -} [ binaryL "||" NOr ]
+  , {- 14 -} [ binaryN "->" NImpl ]
+  ]
+
+-- this is passed into nixOperators
+-- what does this mean?
+nixSelector :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
+nixSelector = annotateLocation $ do
+    (x:xs) <- keyName `sepBy1` selDot
+    return $ x :| xs
+
+-- we have NOperatorDef
+-- here being Unary, Binary and SpecialDef
+-- ok so NBinaryDef is used with " " to mean application
+-- then there's NApp which is what?
+
+data NOperatorDef
+  = NUnaryDef Text NUnaryOp
+  | NBinaryDef Text NBinaryOp NAssoc
+  | NSpecialDef Text NSpecialOp NAssoc
+  deriving (Eq, Ord, Generic, Typeable, Data, Show, NFData)
+
+-- this seems to be wrapping NOperatorDef
+-- what is NAssoc about?
+binaryN name op = (NBinaryDef name op NAssocNone,
+                   InfixN  (opWithLoc name op nBinary))
+binaryL name op = (NBinaryDef name op NAssocLeft,
+                   InfixL  (opWithLoc name op nBinary))
+binaryR name op = (NBinaryDef name op NAssocRight,
+                   InfixR  (opWithLoc name op nBinary))
+prefix  name op = (NUnaryDef name op,
+                   Prefix  (manyUnaryOp (opWithLoc name op nUnary)))
+
+data NSpecialOp = NHasAttrOp | NSelectOp
+  deriving (Eq, Ord, Generic, Typeable, Data, Show, NFData)
+
+
+
+-- it appears that NAssoc tags an operator with 3 types of associativity
+
+-- it is also using the AST Unary and Binary Op
+-- that means our AST actually has specified operators representing specific constructs
+-- should Automatons also be like that? yea... they would be privileged constructs, first class concepts as well!
+
+
+-- the term is meant to be a parser for stuff
+-- the table lists the operators that are being utilised!
 
 -- evaluate :: AAST -> Integer
 -- evaluate = cata $ \case

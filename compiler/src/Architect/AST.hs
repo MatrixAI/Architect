@@ -41,6 +41,7 @@ data ASTF r = ASTLiteral Lit
             | ASTLet [Binding r] r
             | ASTIf r r r
             | ASTSelect r (KeyPath r)
+            | ASTBinary BinaryOp r r
             deriving (Show, Eq, Ord, Functor, Generic, Generic1)
 
 type AST = Fix ASTF
@@ -127,6 +128,15 @@ instance Show1 Key where
     KeyDynamic a -> FC.showsUnaryWith
       (FC.liftShowsPrec2 (FC.liftShowsPrec sp sl) (FC.liftShowList sp sl) sp sl)
       "KeyDynamic" p a
+
+data BinaryOp = OpEq
+              | OpNEq
+              | OpPlus
+              | OpMinus
+              | OpMult
+              | OpDiv
+              | OpApply -- Function application
+              deriving (Show, Read, Eq, Ord, Generic)
 
 -- Template Haskell Derivations
 -- using derive-compat must come at the end

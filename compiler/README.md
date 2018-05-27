@@ -582,3 +582,36 @@ This is parsing an AST!
 ```
 Fix (Compose (Annotate {annotation = SrcSpan {spanBegin = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 1}, spanEnd = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 16}}, annotated = ASTLet [Binding (KeyStatic (NameAlpha "a")) (Fix (Compose (Annotate {annotation = SrcSpan {spanBegin = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 9}, spanEnd = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 10}}, annotated = ASTLiteral (LitInt 3)}))) (SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 5})] (Fix (Compose (Annotate {annotation = SrcSpan {spanBegin = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 15}, spanEnd = SourcePos {sourceName = "", sourceLine = Pos 1, sourceColumn = Pos 16}}, annotated = ASTLiteral (LitInt 3)})))}))
 ```
+
+---
+
+In order to find out whether we can use operator overloading, where we need to know how to have a parser state that gets mutated upon encountering new operators, one must then figure out the fixity, associativity and precedence and change the parser somewhat for later parsing.
+
+One issue, is that because on can import expressions directly from files. How do files perform `imports`? And where do things like operators come from? Well it's possible to get functions from the outside by doing things like:
+
+```
+a = import ...
+a.blah
+```
+
+But operators are usually meant to be used directly.
+
+So even if I define something like:
+
+```
+% = ...
+```
+
+To use `%` we don't want: `a = import path; a.%`.
+
+How do fixity declarations work then?
+
+Since they are metastatements.
+
+Exactly, so the top level is always by default an attribute path then. If we want to allow the possibility of defining `infixr %` as a "metastatement" in the file itself.
+
+It changes the parsing behaviour! Alternatively as a domain specific language, we can just enter operators in directly without anything else. And I think that's what we should do!
+
+Remember this is a DSL, not a general purpose language, so no need for so much genericity!
+
+The biggest problem is that operator overloading changes the parsing behaviour, and this makes it difficult to reconcile with a first class expression language that can be loaded via files. Unless it was possible to have pragmas there that defined the operator directly!
