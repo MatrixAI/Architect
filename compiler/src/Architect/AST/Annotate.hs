@@ -7,7 +7,7 @@
 {-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE TemplateHaskell    #-}
 
-module Architect.ASTAnnotate where
+module Architect.AST.Annotate where
 
 -- this allows us to annotate the AST
 -- which we are able to do because of using the recursion scheme setup
@@ -24,7 +24,7 @@ import qualified Text.Show.Deriving   as SD
 -- | Generic annotation functor
 -- ann is the annotation and the a is the annotated
 -- Note that @Annotate ann@ is equivalent to a functor
-data AnnotateF a b = Annotate
+data AnnotateF a b = AnnotateF
     { annotation :: a
     , annotated  :: b
     } deriving (
@@ -68,4 +68,3 @@ data SourceLoc = SourceLoc
 -- Then fixed version using explicit recursion scheme
 type ASTLocF = ComposeAnnotateF SourceLoc AST.ASTF
 type ASTLoc = Fix ASTLocF
-
