@@ -548,4 +548,27 @@ The `reserved` tries to match a string and then prevent `reservedEnd`. Which app
 
 ---
 
-It appears that `Data.Functor.Classes` from transformers and `derive*` functions from deriving-compat are used together in order to help derive Prelude typeclasses for the type-level fix data structures, specifically `NExprF` (I like to think that this the AST).
+It appears that `Data.Functor.Classes` from transformers and `derive*` functions from deriving-compat are used together in order to help derive Prelude typeclasses for the type-level fix data structures, specifically `NExprF` (I like to think that this the AST). My understand of this pattern comes from `recursion-schemes` package, which appears to try to resolve this problem of deriving typeclasses for the type-level fix data structures differently. I've googled for resources on rationale, but can't find much. I'm hoping to get some documentation or commentary on what the rationale for choosing this pattern and why this method, and transformers and deriving-compat are chosen to solve this problem.
+
+These 2 articles explain the usage of `NExprF`. Which the `F` is meant to mean that it's a functor. And by using type level fix, we can abtract out the recursion! So we have `AASTF` to mean Abstract Syntax Tree Functor. Although we don't need to prefix it with `A` since it's obvious to mean that it's the Architect's AST.
+
+* http://blog.sumtypeofway.com/an-introduction-to-recursion-schemes/
+* http://newartisans.com/2018/04/win-for-recursion-schemes/
+
+The usage of `cata` is like a map over a recursive fixed data structure. It is brought in by `Data.Fix`. So we can actually use this to evaluate a tree.
+
+```
+cata :: Functor f => (f a -> a) -> Fix f -> a
+```
+
+So we can use this on our things to work out.
+
+In order to make the above work, we must make our AST a Functor. We can use auto deriving to achieve this. However that means all of its subtypes must also be a functor. Which is easy to do mostly... until we reach AKey. Which does not only use the type variable as the last argumetn of the data type. Which means we need to explicitly provide it a functor instance. However it makes use of fmapDefault which requires it to be a traversable. To do this, you need an explicit traversable intance as well.
+
+I'm going to change AASTF to just ASTF. And a comment that ASTF is a functor.
+
+---
+
+Traversable class represents functors that can be traversed left to right.
+
+It requires the type to be both a functor and a foldable. Functor meing mappable. AMd foldable meaning reducible (so would that mean its finite to some extent?), well yea...

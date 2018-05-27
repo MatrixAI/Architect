@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric      #-}
@@ -246,87 +247,8 @@ archBinding = do
     keyStatic = KeyStatic <$> ((NameAlpha <$> identifier) <|> (NameSymbol <$> operator)) -- this is meant to work
 
 
--- <+> is mplus
--- well <|> in ParsecT is mplus as well
--- so they are the same!!!
-
--- it's mplus
-    -- keyDynamic = KeyDynamic <$> archAntiquoted archString
-
--- KeyStatic must take a AName
--- AName may be a NameAlpha or NameSymbol
--- identifier currently takes a Text
--- we must convert depending on what it is
--- operator or identifier
-
-
--- bindings can be a stirng keys or static name keys
--- so we need archAntiquoted now
-
--- nixAntiquoted :: Parser a -> Parser (Antiquoted a NExprLoc)
--- nixAntiquoted p =
---         Antiquoted <$> (antiStart *> nixToplevelForm <* symbol "}")
---     <+> Plain <$> p
---     <?> "anti-quotation"
-
--- we are just going to test without the dynamic keys first
-
-
-
--- can a binding be a key?
--- also how do we differentiate it?
-
--- so do we still the need the annotated?
--- nope I don't think so, since it extracts it out
-
--- the above needs archSelector
--- so what is archSelector
--- it represents a name
--- but we don't bother with that here..
-
-
--- a selector here shouldn't matter
--- since we just want a name
--- here it's saying that we can have a name
--- that's sort of weird
--- we want an annotated archSelector
--- the anntoated takes out
-
--- Binding <$> (annotated <$> archSelector)
--- archSelector :: Parser (Annotate SrcSpan (AAttrPath AASTLoc))
--- annotated :: (AATrrPath AASTLoc)
--- the annotated extracts that out of the Annotate SrcSpan
--- then Binding works on that
-
--- Binding works on attribute paths
-
--- AAttrPath is using NonEmpty lists
--- we need to turn it into a non empty lists
--- to do that we need to use :| as the consing operator
--- archSelector :: Parser (Annotate SrcSpan (AAttrPath AASTLoc))
--- archSelector = annotateLocation $ do
---     (x:xs) <- keyName `sepBy1` selDot
---     return $ x :| xs
-
--- keyName :: Parser (AKey AASTLoc)
--- keyName = KeyStatic <$> archName
-
--- selDot :: Parser ()
--- selDot = symbol "."
-
--- what is selDot all about?
--- why not followed by a path...
--- we don't have paths
-
--- nixIf :: Parser NExprLoc
--- nixIf = annotateLocation1 (NIf
---      <$> (reserved "if" *> nixExprLoc)
---      <*> (reserved "then" *> nixToplevelForm)
---      <*> (reserved "else" *> nixToplevelForm)
---      <?> "if")
-
--- nixExprLoc :: Parser NExprLoc
--- nixExprLoc = makeExprParser nixTerm $ map (map snd) (nixOperators nixSelector)
-
--- nixLambda :: Parser NExprLoc
--- nixLambda = nAbs <$> annotateLocation (try argExpr) <*> nixToplevelForm
+evaluate :: AAST -> Integer
+evaluate = cata $ \case
+  ASTLiteral (LitInt n) -> n
+  ASTLiteral (LitFloat n) -> round n
+  _ -> 0
