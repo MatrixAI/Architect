@@ -2,11 +2,11 @@
 
 module Architect.Compiler where
 
-import qualified Data.Text                  as T
-import           Data.Void                  (Void)
-import qualified Text.Megaparsec            as P
-import qualified Text.Megaparsec.Char       as PC
-import qualified Text.Megaparsec.Char.Lexer as PL
+-- import qualified Data.Text                  as T
+-- import           Data.Void                  (Void)
+-- import qualified Text.Megaparsec            as P
+-- import qualified Text.Megaparsec.Char       as PC
+-- import qualified Text.Megaparsec.Char.Lexer as PL
 
 -- we allow application
 -- data Expr = App Expr Expr
@@ -26,14 +26,14 @@ import qualified Text.Megaparsec.Char.Lexer as PL
 
 
 
-data Decl = ExprDecl BindGroup
-data Name = Name String
+-- data Decl = ExprDecl BindGroup
+-- data Name = Name String
 
 -- underscores to prevent namespace issues
 -- a bind group is needed for different bindings
 -- but right now we just need a name
-data BindGroup = BindGroup
-  { _matchName  :: Name }
+-- data BindGroup = BindGroup
+--   { _matchName  :: Name }
 
 
 
@@ -74,24 +74,24 @@ data BindGroup = BindGroup
 -- Note that the "token" tyep for STring and Text is Char
 -- while for ByteStrings it's Word8
 -- should we be using lazy Text later?
-type Parser = P.Parsec Void T.Text
+-- type Parser = P.Parsec Void T.Text
 
-lineComment :: Parser ()
-lineComment = PL.skipLineComment "--"
+-- lineComment :: Parser ()
+-- lineComment = PL.skipLineComment "--"
 
-blockComment :: Parser ()
-blockComment = PL.skipBlockComment "{-" "-}"
+-- blockComment :: Parser ()
+-- blockComment = PL.skipBlockComment "{-" "-}"
 
-space :: Parser ()
-space = PL.space PC.space1 lineComment blockComment
+-- space :: Parser ()
+-- space = PL.space PC.space1 lineComment blockComment
 
-symbol :: T.Text -> Parser T.Text
-symbol = PL.symbol space
+-- symbol :: T.Text -> Parser T.Text
+-- symbol = PL.symbol space
 
--- the front end syntax is
--- we need ExprDecl BindGroup
-declarations :: Parser Decl
-declarations = undefined
+-- -- the front end syntax is
+-- -- we need ExprDecl BindGroup
+-- declarations :: Parser Decl
+-- declarations = undefined
 
 -- parens :: Parser a -> Parser a
 -- parens = P.between (symbol "(") (symbol ")")

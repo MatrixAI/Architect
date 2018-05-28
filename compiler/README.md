@@ -615,3 +615,34 @@ It changes the parsing behaviour! Alternatively as a domain specific language, w
 Remember this is a DSL, not a general purpose language, so no need for so much genericity!
 
 The biggest problem is that operator overloading changes the parsing behaviour, and this makes it difficult to reconcile with a first class expression language that can be loaded via files. Unless it was possible to have pragmas there that defined the operator directly!
+
+---
+
+Operator table works like this.
+
+In the Megaparsec library there's:
+
+```
+Text.Megaparsec.Expr
+```
+
+Inside there, there's a data type `data Operator m a`. This has the constructors: `InfixN`, `InfixL`, `InfixR`, `Prefix`, and `Postfix`.
+
+This is what is needed by the `makeExprParser` so it knows how to work with the fixity of the operators.
+
+The Operator is also applied `m a`. The `m` is in fact a monad. The `a` is the thing that you are "parsing". Since we are parsing annotated AST, this is always the `ASTLoc` type for the Architect language.
+
+But the `m` type has to be `Parser`. So it must be a parser of some sort.
+
+Before we would do something like `Division <$ symbol "/"`. The `symbol` creates the parser. And we use `Division` to replace the internal `()` type with our own constructor. The hnix example uses `InfixL $ nApp <$ symbol ""`. The `symbol ""` appears to parse nothing, an empty space.
+
+```
+<$ :: Functor f => a -> f b -> f a
+```
+
+The `nApp` takes 2  `NExprLoc -> NExprLoc -> NExprLoc` .
+
+This is so weird, how does this work. The `nApp` is going to be a function. And if we `<$` into the `symbol ""` functor, we are going to get a parser of a function!?
+
+
+

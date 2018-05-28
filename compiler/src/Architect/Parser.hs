@@ -31,6 +31,7 @@ import qualified Text.Megaparsec            as MP
 import qualified Text.Megaparsec.Char       as MPC
 import qualified Text.Megaparsec.Char.Lexer as MPL
 import qualified Text.Megaparsec.Pos        as MPP
+import qualified Text.Megaparsec.Expr       as MPE
 
 type Parser = MP.Parsec Void Text
 
@@ -230,154 +231,175 @@ archExpr = undefined
 -- so % is a valid name as a key
 -- in that case % couldn't be an operator, unless it was spaced out
 
-nixExprLoc :: Parser NExprLoc
-nixExprLoc = makeExprParser nixTerm $ map (map snd) (nixOperators nixSelector)
+-- nixExprLoc :: Parser NExprLoc
+-- nixExprLoc = makeExprParser nixTerm $ map (map snd) (nixOperators nixSelector)
 
--- pathChar is something that is Char -> Bool
--- apparently anything that can be in a path!
--- or we have those variants of braces
--- depending on the brace, we expect different data structures
--- nixSelect for parantheses
--- what is nixSelect it's some sort of attribute path
+-- -- pathChar is something that is Char -> Bool
+-- -- apparently anything that can be in a path!
+-- -- or we have those variants of braces
+-- -- depending on the brace, we expect different data structures
+-- -- nixSelect for parantheses
+-- -- what is nixSelect it's some sort of attribute path
 
--- this is a lookahead, which means it doesn't consume anything
+-- -- this is a lookahead, which means it doesn't consume anything
 
-nixTerm :: Parser NExprLoc
-nixTerm = do
-    c <- try $ lookAhead $ satisfy $ \x ->
-        pathChar x ||
-        x == '(' ||
-        x == '{' ||
-        x == '[' ||
-        x == '<' ||
-        x == '/' ||
-        x == '"' ||
-        x == '\''
-    case c of
-        '('  -> nixSelect nixParens
-        '{'  -> nixSelect nixSet
-        '['  -> nixList
-        '<'  -> nixSPath
-        '/'  -> nixPath
-        '"'  -> nixStringExpr
-        '\'' -> nixStringExpr
-        _    -> msum $
-            [ nixSelect nixSet | c == 'r' ] ++
-            [ nixPath | pathChar c ] ++
-            if isDigit c
-            then [ nixFloat
-                 , nixInt ]
-            else [ nixUri | isAlpha c ] ++
-                 [ nixBool | c == 't' || c == 'f' ] ++
-                 [ nixNull | c == 'n' ] ++
-                 [ nixSelect nixSym ]
+-- nixTerm :: Parser NExprLoc
+-- nixTerm = do
+--     c <- try $ lookAhead $ satisfy $ \x ->
+--         pathChar x ||
+--         x == '(' ||
+--         x == '{' ||
+--         x == '[' ||
+--         x == '<' ||
+--         x == '/' ||
+--         x == '"' ||
+--         x == '\''
+--     case c of
+--         '('  -> nixSelect nixParens
+--         '{'  -> nixSelect nixSet
+--         '['  -> nixList
+--         '<'  -> nixSPath
+--         '/'  -> nixPath
+--         '"'  -> nixStringExpr
+--         '\'' -> nixStringExpr
+--         _    -> msum $
+--             [ nixSelect nixSet | c == 'r' ] ++
+--             [ nixPath | pathChar c ] ++
+--             if isDigit c
+--             then [ nixFloat
+--                  , nixInt ]
+--             else [ nixUri | isAlpha c ] ++
+--                  [ nixBool | c == 't' || c == 'f' ] ++
+--                  [ nixNull | c == 'n' ] ++
+--                  [ nixSelect nixSym ]
 
 
--- WHITESPACE is an operator as well!
--- that's what the NBinaryDef!
--- it is in this operator table
+-- -- WHITESPACE is an operator as well!
+-- -- that's what the NBinaryDef!
+-- -- it is in this operator table
 
 data Associativity = AssocNone | AssocLeft | AssocRight
-  deriving (Show, Eq, Ord, Generic, NFData)
+  deriving (Show, Eq, Ord, Generic)
 
--- this was in Annotated.hs
--- what is this supposed to mean?
--- AnnE is a bidirectional pattern
--- <>
--- this does some sort of joining...
--- why?
--- <> is Semigroup joining operator
--- we are joining the source positions some how
--- well... start becomes the biggest start, and end is the biggest end
--- and so we then have... NBinary NApp e1 e2
--- what is the oint of this!?
--- it is just to join 2 Annotated AST's locations into 1 annotated AST!?
--- InfixL and InfixR comes from Megaparsec!
-nApp :: NExprLoc -> NExprLoc -> NExprLoc
-nApp e1@(AnnE s1 _) e2@(AnnE s2 _) = AnnE (s1 <> s2) (NBinary NApp e1 e2)
-nApp _ _ = error "nApp: unexpected"
+data OperatorDef = BinaryDef Text AST.BinaryOp Associativity
 
-archOperators = [
+-- data NOperatorDef
+--   = NUnaryDef Text NUnaryOp
+--   | NBinaryDef Text NBinaryOp NAssoc
+--   | NSpecialDef Text NSpecialOp NAssoc
+--   deriving (Eq, Ord, Generic, Typeable, Data, Show, NFData)
+
+-- -- this was in Annotated.hs
+-- -- what is this supposed to mean?
+-- -- AnnE is a bidirectional pattern
+-- -- <>
+-- -- this does some sort of joining...
+-- -- why?
+-- -- <> is Semigroup joining operator
+-- -- we are joining the source positions some how
+-- -- well... start becomes the biggest start, and end is the biggest end
+-- -- and so we then have... NBinary NApp e1 e2
+-- -- what is the oint of this!?
+-- -- it is just to join 2 Annotated AST's locations into 1 annotated AST!?
+-- -- InfixL and InfixR comes from Megaparsec!
+-- nApp :: NExprLoc -> NExprLoc -> NExprLoc
+-- nApp e1@(AnnE s1 _) e2@(AnnE s2 _) = AnnE (s1 <> s2) (NBinary NApp e1 e2)
+-- nApp _ _ = error "nApp: unexpected"
+
+-- the order of this matters
+-- the nesting of the list... indicate things that have the same precedence
+-- none binds more than the other, so you just parse them left to right i think
+archOperators =
   [
-    (
-      NBinaryDef " " OpApply AssocLeft,
-      InfixL $ nApp <$ symbol ""
-    )
-  ]
-                ]
-
-
-nixOperators
-    :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
-    -> [[(NOperatorDef, Operator Parser NExprLoc)]]
-nixOperators selector =
-  [ -- This is not parsed here, even though technically it's part of the
-    -- expression table. The problem is that in some cases, such as list
-    -- membership, it's also a term. And since terms are effectively the
-    -- highest precedence entities parsed by the expression parser, it ends up
-    -- working out that we parse them as a kind of "meta-term".
-
-    -- {-  1 -} [ (NSpecialDef "." NSelectOp NAssocLeft,
-    --             Postfix $ do
-    --                    sel <- seldot *> selector
-    --                    mor <- optional (reserved "or" *> term)
-    --                    return $ \x -> nSelectLoc x sel mor) ]
-
-    {-  2 -} [ (NBinaryDef " " NApp NAssocLeft,
-                -- Thanks to Brent Yorgey for showing me this trick!
-                InfixL $ nApp <$ symbol "") ]
-  , {-  3 -} [ prefix  "-"  NNeg ]
-  , {-  4 -} [ (NSpecialDef "?" NHasAttrOp NAssocLeft,
-                Postfix $ symbol "?" *> (flip nHasAttr <$> selector)) ]
-  , {-  5 -} [ binaryR "++" NConcat ]
-  , {-  6 -} [ binaryL "*"  NMult
-             , binaryL "/"  NDiv ]
-  , {-  7 -} [ binaryL "+"  NPlus
-             , binaryL "-"  NMinus ]
-  , {-  8 -} [ prefix  "!"  NNot ]
-  , {-  9 -} [ binaryR "//" NUpdate ]
-  , {- 10 -} [ binaryL "<"  NLt
-             , binaryL ">"  NGt
-             , binaryL "<=" NLte
-             , binaryL ">=" NGte ]
-  , {- 11 -} [ binaryN "==" NEq
-             , binaryN "!=" NNEq ]
-  , {- 12 -} [ binaryL "&&" NAnd ]
-  , {- 13 -} [ binaryL "||" NOr ]
-  , {- 14 -} [ binaryN "->" NImpl ]
+    [(BinaryDef " " AST.OpApply AssocLeft, MPE.InfixL $ ASTA.aApp <$ symbol "")]
   ]
 
--- this is passed into nixOperators
--- what does this mean?
-nixSelector :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
-nixSelector = annotateLocation $ do
-    (x:xs) <- keyName `sepBy1` selDot
-    return $ x :| xs
+-- how is it possible that ASTLoc -> ASTLoc -> ASTLoc becoms ASTLoc
 
--- we have NOperatorDef
--- here being Unary, Binary and SpecialDef
--- ok so NBinaryDef is used with " " to mean application
--- then there's NApp which is what?
+-- ASTA.aApp <$ symbol "" :: MP.ParsecT Void Text Data.Functor.Identity.Identity (ASTLoc -> ASTLoc -> ASTLoc)
+-- MPE.InfixL (ASTA.aApp <$ symbol "")
+-- MPE.InfixL $ ASTA.aApp <$ symbol "" :: MPE.Operator (MP.ParsecT Void Text Data.Functor.Identity.Identity) ASTLoc
+-- MPE.InfixL :: m (a -> a -> a) -> MPE.Operator m a
 
-data NOperatorDef
-  = NUnaryDef Text NUnaryOp
-  | NBinaryDef Text NBinaryOp NAssoc
-  | NSpecialDef Text NSpecialOp NAssoc
-  deriving (Eq, Ord, Generic, Typeable, Data, Show, NFData)
+-- Oh... InfixL takes a monad of a binary operator
+-- InfixL (m (a -> a -> a))
+-- so there you go
+-- but why symbol ""?
+-- if we take empty space, and then a parser that joins together
+-- ok... so what aApp really is
+-- is that it is a function that takes 2 generic annotated ASTs and joined them together for an "binary applicat" annotated AST
+-- it is NOT yet a parser, but by applying <$ symbol "", we end up turning it into a parser
+-- but the parser parses NOTHING, it consumes nothing that is... because... why?
+-- I'm not sure, but I'd think that it should consume at least 1 space
 
--- this seems to be wrapping NOperatorDef
--- what is NAssoc about?
-binaryN name op = (NBinaryDef name op NAssocNone,
-                   InfixN  (opWithLoc name op nBinary))
-binaryL name op = (NBinaryDef name op NAssocLeft,
-                   InfixL  (opWithLoc name op nBinary))
-binaryR name op = (NBinaryDef name op NAssocRight,
-                   InfixR  (opWithLoc name op nBinary))
-prefix  name op = (NUnaryDef name op,
-                   Prefix  (manyUnaryOp (opWithLoc name op nUnary)))
 
-data NSpecialOp = NHasAttrOp | NSelectOp
-  deriving (Eq, Ord, Generic, Typeable, Data, Show, NFData)
+
+-- nixOperators
+--     :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
+--     -> [[(NOperatorDef, Operator Parser NExprLoc)]]
+-- nixOperators selector =
+--   [ -- This is not parsed here, even though technically it's part of the
+--     -- expression table. The problem is that in some cases, such as list
+--     -- membership, it's also a term. And since terms are effectively the
+--     -- highest precedence entities parsed by the expression parser, it ends up
+--     -- working out that we parse them as a kind of "meta-term".
+
+--     -- {-  1 -} [ (NSpecialDef "." NSelectOp NAssocLeft,
+--     --             Postfix $ do
+--     --                    sel <- seldot *> selector
+--     --                    mor <- optional (reserved "or" *> term)
+--     --                    return $ \x -> nSelectLoc x sel mor) ]
+
+--     {-  2 -} [ (NBinaryDef " " NApp NAssocLeft,
+--                 -- Thanks to Brent Yorgey for showing me this trick!
+--                 InfixL $ nApp <$ symbol "") ]
+--   , {-  3 -} [ prefix  "-"  NNeg ]
+--   , {-  4 -} [ (NSpecialDef "?" NHasAttrOp NAssocLeft,
+--                 Postfix $ symbol "?" *> (flip nHasAttr <$> selector)) ]
+--   , {-  5 -} [ binaryR "++" NConcat ]
+--   , {-  6 -} [ binaryL "*"  NMult
+--              , binaryL "/"  NDiv ]
+--   , {-  7 -} [ binaryL "+"  NPlus
+--              , binaryL "-"  NMinus ]
+--   , {-  8 -} [ prefix  "!"  NNot ]
+--   , {-  9 -} [ binaryR "//" NUpdate ]
+--   , {- 10 -} [ binaryL "<"  NLt
+--              , binaryL ">"  NGt
+--              , binaryL "<=" NLte
+--              , binaryL ">=" NGte ]
+--   , {- 11 -} [ binaryN "==" NEq
+--              , binaryN "!=" NNEq ]
+--   , {- 12 -} [ binaryL "&&" NAnd ]
+--   , {- 13 -} [ binaryL "||" NOr ]
+--   , {- 14 -} [ binaryN "->" NImpl ]
+--   ]
+
+-- -- this is passed into nixOperators
+-- -- what does this mean?
+-- nixSelector :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
+-- nixSelector = annotateLocation $ do
+--     (x:xs) <- keyName `sepBy1` selDot
+--     return $ x :| xs
+
+-- -- we have NOperatorDef
+-- -- here being Unary, Binary and SpecialDef
+-- -- ok so NBinaryDef is used with " " to mean application
+-- -- then there's NApp which is what?
+
+
+-- -- this seems to be wrapping NOperatorDef
+-- -- what is NAssoc about?
+-- binaryN name op = (NBinaryDef name op NAssocNone,
+--                    InfixN  (opWithLoc name op nBinary))
+-- binaryL name op = (NBinaryDef name op NAssocLeft,
+--                    InfixL  (opWithLoc name op nBinary))
+-- binaryR name op = (NBinaryDef name op NAssocRight,
+--                    InfixR  (opWithLoc name op nBinary))
+-- prefix  name op = (NUnaryDef name op,
+--                    Prefix  (manyUnaryOp (opWithLoc name op nUnary)))
+
+-- data NSpecialOp = NHasAttrOp | NSelectOp
+--   deriving (Eq, Ord, Generic, Typeable, Data, Show, NFData)
 
 
 
