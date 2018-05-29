@@ -103,9 +103,24 @@ type ASTLoc = Fix ASTLocF
 -- here is the apply combinator
 -- taking 2 subtrees, and generating an "apply AST"
 
+-- these are all application operators
+-- or combinators that join together ASTLoc with something
+-- they build it up
+
 apply :: ASTLoc -> ASTLoc -> ASTLoc
 apply e1@(Fix (Compose (AnnotateF s1 _))) e2@(Fix (Compose (AnnotateF s2 _))) =
   Fix $ Compose $ AnnotateF (s1 <> s2) (AST.ASTBinary AST.OpApply e1 e2)
+
+-- this gets used by the unary operators
+-- so it's another AST combinator!
+-- this is applying from a unary operator
+unaryApply :: AnnotateF SourceLoc AST.UnaryOp -> ASTLoc -> ASTLoc
+unaryApply (AnnotateF s1 u) e1@(Fix (Compose (AnnotateF s2 _))) =
+  Fix $ Compose $ AnnotateF (s1 <> s2) (AST.ASTUnary u e1)
+
+
+-- nUnary (AnnotateF s1 u) e1@(AnnotateF s2 _) = AnnE (s1 <> s2) (NUnary u e1)
+-- nUnary _ _ = error "nUnary: unexpected"
 
 -- this one is not very symmetrical
 -- it doesn't directly take an ASTLoc
@@ -121,7 +136,7 @@ apply e1@(Fix (Compose (AnnotateF s1 _))) e2@(Fix (Compose (AnnotateF s2 _))) =
 -- it's one of the wrappers within the tree
 -- the tree is very wrapped, we have compose functors, ASTF, Fix, annotations, annotation fix
 -- there is a LOT of wrappers around this AST in order to give it higher order functionality
-abstract :: AnnotateF SourceLoc (Params ASTLoc) -> ASTLoc -> ASTLoc
+-- abstract :: AnnotateF SourceLoc (Params ASTLoc) -> ASTLoc -> ASTLoc
 
 -- nApp :: NExprLoc -> NExprLoc -> NExprLoc
 -- nApp e1@(AnnE s1 _) e2@(AnnE s2 _) = AnnE (s1 <> s2) (NBinary NApp e1 e2)

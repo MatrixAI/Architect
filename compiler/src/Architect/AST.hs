@@ -41,6 +41,7 @@ data ASTF r = ASTLiteral Lit
             | ASTLet [Binding r] r
             | ASTIf r r r
             | ASTSelect r (KeyPath r)
+            | ASTUnary UnaryOp r
             | ASTBinary BinaryOp r r
             deriving (Show, Eq, Ord, Functor, Generic, Generic1)
 
@@ -128,6 +129,11 @@ instance Show1 Key where
     KeyDynamic a -> FC.showsUnaryWith
       (FC.liftShowsPrec2 (FC.liftShowsPrec sp sl) (FC.liftShowList sp sl) sp sl)
       "KeyDynamic" p a
+
+-- a unary operator can just be overloaded
+-- but for now we will just allow it
+data UnaryOp = OpNeg | OpNot
+  deriving (Show, Read, Eq, Ord, Generic)
 
 data BinaryOp = OpEq
               | OpNEq

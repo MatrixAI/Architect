@@ -644,5 +644,6 @@ The `nApp` takes 2  `NExprLoc -> NExprLoc -> NExprLoc` .
 
 This is so weird, how does this work. The `nApp` is going to be a function. And if we `<$` into the `symbol ""` functor, we are going to get a parser of a function!?
 
+---
 
-
+Ok we are working on the operator table. And we were working on function application. Which was a raw operator. And it works before operator definitions work on binary operators. For some reason a parser.. that parses nothing.

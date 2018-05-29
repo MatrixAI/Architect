@@ -278,137 +278,43 @@ archExpr = undefined
 -- -- that's what the NBinaryDef!
 -- -- it is in this operator table
 
-data Associativity = AssocNone | AssocLeft | AssocRight
-  deriving (Show, Eq, Ord, Generic)
 
-data OperatorDef = BinaryDef Text AST.BinaryOp Associativity
-
--- data NOperatorDef
---   = NUnaryDef Text NUnaryOp
---   | NBinaryDef Text NBinaryOp NAssoc
---   | NSpecialDef Text NSpecialOp NAssoc
---   deriving (Eq, Ord, Generic, Typeable, Data, Show, NFData)
-
--- -- this was in Annotated.hs
--- -- what is this supposed to mean?
--- -- AnnE is a bidirectional pattern
--- -- <>
--- -- this does some sort of joining...
--- -- why?
--- -- <> is Semigroup joining operator
--- -- we are joining the source positions some how
--- -- well... start becomes the biggest start, and end is the biggest end
--- -- and so we then have... NBinary NApp e1 e2
--- -- what is the oint of this!?
--- -- it is just to join 2 Annotated AST's locations into 1 annotated AST!?
--- -- InfixL and InfixR comes from Megaparsec!
--- nApp :: NExprLoc -> NExprLoc -> NExprLoc
--- nApp e1@(AnnE s1 _) e2@(AnnE s2 _) = AnnE (s1 <> s2) (NBinary NApp e1 e2)
--- nApp _ _ = error "nApp: unexpected"
-
--- the order of this matters
--- the nesting of the list... indicate things that have the same precedence
--- none binds more than the other, so you just parse them left to right i think
+-- here we define the operators that are relevant
+-- if we want to overloaded operators, we would need to abstract this into a state
+-- that can be changed by the parser
+-- note that will also change the AST
+-- we would need a generic operator ast
+-- that can be specialised to whatever it needs to be
+-- specifically whether the operator is unary or binary or whatever
+-- depends on the type of the operator
+-- but since we are not building a general purpose language, we'll leave this to the future!
+archOperators :: [[MPE.Operator Parser ASTA.ASTLoc]]
 archOperators =
   [
-    [(BinaryDef " " AST.OpApply AssocLeft, MPE.InfixL $ ASTA.aApp <$ symbol "")]
+    [MPE.InfixL $ ASTA.apply <$ symbol ""], -- function application (with spaces)
+    [MPE.Prefix $ opWithLoc "-" AST.OpNeg ASTA.unaryApply] -- unary application
   ]
 
--- how is it possible that ASTLoc -> ASTLoc -> ASTLoc becoms ASTLoc
+opWithLoc :: Text -> o -> (ASTA.AnnotateF ASTA.SourceLoc o -> a) -> Parser a
+opWithLoc name op f = do
+    ASTA.AnnotateF ann _ <- annotateLocation $ operator2 name
+    return $ f (ASTA.AnnotateF ann op)
 
--- ASTA.aApp <$ symbol "" :: MP.ParsecT Void Text Data.Functor.Identity.Identity (ASTLoc -> ASTLoc -> ASTLoc)
--- MPE.InfixL (ASTA.aApp <$ symbol "")
--- MPE.InfixL $ ASTA.aApp <$ symbol "" :: MPE.Operator (MP.ParsecT Void Text Data.Functor.Identity.Identity) ASTLoc
--- MPE.InfixL :: m (a -> a -> a) -> MPE.Operator m a
+-- this conflicts with the rest of the parser with regards to generic operators
+-- we still don't understand this well enough to work with arbitrary operators in the langauage
+-- so we will fix the number of operators directly (note that this operator is generic, but fixes it to specific things)
+operator2 :: Text -> Parser Text
+operator2 "-" = lexeme . MP.try $ MPC.string "-" <* MP.notFollowedBy (MPC.char '>')
+operator2 "/" = lexeme . MP.try $ MPC.string "/" <* MP.notFollowedBy (MPC.char '/')
+operator2 "<" = lexeme . MP.try $ MPC.string "<" <* MP.notFollowedBy (MPC.char '=')
+operator2 ">" = lexeme . MP.try $ MPC.string ">" <* MP.notFollowedBy (MPC.char '=')
+operator2 n   = symbol n
 
--- Oh... InfixL takes a monad of a binary operator
--- InfixL (m (a -> a -> a))
--- so there you go
--- but why symbol ""?
--- if we take empty space, and then a parser that joins together
--- ok... so what aApp really is
--- is that it is a function that takes 2 generic annotated ASTs and joined them together for an "binary applicat" annotated AST
--- it is NOT yet a parser, but by applying <$ symbol "", we end up turning it into a parser
--- but the parser parses NOTHING, it consumes nothing that is... because... why?
--- I'm not sure, but I'd think that it should consume at least 1 space
+-- still not sure what the point of the annotated asts is for
+-- since we probably want to parse it into a tree that maintains some isomorphism with the original text
 
-
-
--- nixOperators
---     :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
---     -> [[(NOperatorDef, Operator Parser NExprLoc)]]
--- nixOperators selector =
---   [ -- This is not parsed here, even though technically it's part of the
---     -- expression table. The problem is that in some cases, such as list
---     -- membership, it's also a term. And since terms are effectively the
---     -- highest precedence entities parsed by the expression parser, it ends up
---     -- working out that we parse them as a kind of "meta-term".
-
---     -- {-  1 -} [ (NSpecialDef "." NSelectOp NAssocLeft,
---     --             Postfix $ do
---     --                    sel <- seldot *> selector
---     --                    mor <- optional (reserved "or" *> term)
---     --                    return $ \x -> nSelectLoc x sel mor) ]
-
---     {-  2 -} [ (NBinaryDef " " NApp NAssocLeft,
---                 -- Thanks to Brent Yorgey for showing me this trick!
---                 InfixL $ nApp <$ symbol "") ]
---   , {-  3 -} [ prefix  "-"  NNeg ]
---   , {-  4 -} [ (NSpecialDef "?" NHasAttrOp NAssocLeft,
---                 Postfix $ symbol "?" *> (flip nHasAttr <$> selector)) ]
---   , {-  5 -} [ binaryR "++" NConcat ]
---   , {-  6 -} [ binaryL "*"  NMult
---              , binaryL "/"  NDiv ]
---   , {-  7 -} [ binaryL "+"  NPlus
---              , binaryL "-"  NMinus ]
---   , {-  8 -} [ prefix  "!"  NNot ]
---   , {-  9 -} [ binaryR "//" NUpdate ]
---   , {- 10 -} [ binaryL "<"  NLt
---              , binaryL ">"  NGt
---              , binaryL "<=" NLte
---              , binaryL ">=" NGte ]
---   , {- 11 -} [ binaryN "==" NEq
---              , binaryN "!=" NNEq ]
---   , {- 12 -} [ binaryL "&&" NAnd ]
---   , {- 13 -} [ binaryL "||" NOr ]
---   , {- 14 -} [ binaryN "->" NImpl ]
---   ]
-
--- -- this is passed into nixOperators
--- -- what does this mean?
--- nixSelector :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
--- nixSelector = annotateLocation $ do
---     (x:xs) <- keyName `sepBy1` selDot
---     return $ x :| xs
-
--- -- we have NOperatorDef
--- -- here being Unary, Binary and SpecialDef
--- -- ok so NBinaryDef is used with " " to mean application
--- -- then there's NApp which is what?
-
-
--- -- this seems to be wrapping NOperatorDef
--- -- what is NAssoc about?
--- binaryN name op = (NBinaryDef name op NAssocNone,
---                    InfixN  (opWithLoc name op nBinary))
--- binaryL name op = (NBinaryDef name op NAssocLeft,
---                    InfixL  (opWithLoc name op nBinary))
--- binaryR name op = (NBinaryDef name op NAssocRight,
---                    InfixR  (opWithLoc name op nBinary))
--- prefix  name op = (NUnaryDef name op,
---                    Prefix  (manyUnaryOp (opWithLoc name op nUnary)))
-
--- data NSpecialOp = NHasAttrOp | NSelectOp
---   deriving (Eq, Ord, Generic, Typeable, Data, Show, NFData)
-
-
-
--- it appears that NAssoc tags an operator with 3 types of associativity
-
--- it is also using the AST Unary and Binary Op
--- that means our AST actually has specified operators representing specific constructs
--- should Automatons also be like that? yea... they would be privileged constructs, first class concepts as well!
-
+-- fixing the operators like this is problematic
+-- but we have a fixed set of operators
 
 -- the term is meant to be a parser for stuff
 -- the table lists the operators that are being utilised!
