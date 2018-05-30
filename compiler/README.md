@@ -647,3 +647,75 @@ This is so weird, how does this work. The `nApp` is going to be a function. And 
 ---
 
 Ok we are working on the operator table. And we were working on function application. Which was a raw operator. And it works before operator definitions work on binary operators. For some reason a parser.. that parses nothing.
+
+No overloaded operators for now.
+
+What is the point of `opWithLoc`, it applies the operator to a name. Note that operator is just a parser for some symbols. It's generic, so it works on anything, but it also has special cased a number of symbols. Like `-`... etc.
+
+The reason is to allow one to both parse the operator and also annotate it with a location. The `f` then combines it with something. Well the f is the combinator. In this case teh `ASTA.unaryApply`.
+
+Why does the Operator constructors are constructors taking parsers of functions? Some are unary functions, others are binary functions? It's because they need to have a parser of a function. A function that when applied would return the AST again. So a unary operator would take the thing that it's applying on, and return something that is part of the AST. That's what the `f` does. It applies the annotation of symbol parse. But it is awaiting another ASTLoc to apply to, to finish the whole thing.
+
+How can we simplify this? It seems a bit weird here.
+
+```
+
+ASTA.AnnotateF ann _ <- annotateLocation $ operator opName
+return $ unaryApply (ASTA.AnnotateF ann op)
+
+return $ (Fix $ Compose $ AnnotateF (s1 <> s2) (AST.ASTUnary u e1))
+```
+
+Remember that `<$` means to `fmap` kind of. It is `Functor f => a -> f b -> f a`
+
+```
+symbol "" $> ASTA.apply
+
+transform <$> functor
+
+fmap transform functor
+
+(fmap . const) thing functor
+
+fmap (\_ -> thing) functor
+
+Parser (ASTLoc -> ASTLoc -> ASTLoc)
+```
+
+It appears that to make use of the `OpNeg` operator, we need to produce a function `ASTLoc -> ASTLoc`. To do so, we need to parse the operator, get the annotated location position. Then combine that with f. Where f also combines the annotation with the next one... Surely there must be a generic way to do this.
+
+Surely we can write 1 combinator that explicitly combines annotation positions. But then allow a generic operator to be applied to them.
+
+Right now it has a special one just for `NBinary` which special cases just the application of a binary operator. But if operators are just functions. Then what difference does it make. Not exactly. Operators also have associativity. Yes that's right. Also in Haskell, operators can take multiple arguments, since they are just functions. Whaat.. Yea. You can do:
+
+```
+(++++) a b c = a + b + c
+```
+
+It just means when you do a binary application, you only apply both. And you are left with some thing that returns a function.
+
+I'm going to throw this away. I'm just going to use only function application as the only operator. We will need to figure out this operator thing another way.
+
+```
+archOperators :: [[MPE.Operator Parser ASTA.ASTLoc]]
+archOperators =
+  [
+    [MPE.InfixL $ ASTA.apply <$ symbol ""], -- function application (with spaces)
+    [MPE.Prefix $ opWithLoc "-" AST.OpNeg ASTA.unaryApply] -- unary application
+  ]
+
+opWithLoc :: Text -> o -> (ASTA.AnnotateF ASTA.SourceLoc o -> a) -> Parser a
+opWithLoc name op f = do
+    ASTA.AnnotateF ann _ <- annotateLocation $ operator2 name
+    return $ f (ASTA.AnnotateF ann op)
+
+-- this conflicts with the rest of the parser with regards to generic operators
+-- we still don't understand this well enough to work with arbitrary operators in the langauage
+-- so we will fix the number of operators directly (note that this operator is generic, but fixes it to specific things)
+operator2 :: Text -> Parser Text
+operator2 "-" = lexeme . MP.try $ MPC.string "-" <* MP.notFollowedBy (MPC.char '>')
+operator2 "/" = lexeme . MP.try $ MPC.string "/" <* MP.notFollowedBy (MPC.char '/')
+operator2 "<" = lexeme . MP.try $ MPC.string "<" <* MP.notFollowedBy (MPC.char '=')
+operator2 ">" = lexeme . MP.try $ MPC.string ">" <* MP.notFollowedBy (MPC.char '=')
+operator2 n   = symbol n
+```

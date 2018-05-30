@@ -169,9 +169,6 @@ archOperator :: Parser ASTA.ASTLoc
 archOperator = annotateLocationAST
   ((AST.ASTName . AST.NameSymbol) <$> operator <?> "namesymbol")
 
-archTopLevel :: Parser ASTA.ASTLoc
-archTopLevel = archLet <|> archInt
-
 archLet :: Parser ASTA.ASTLoc
 archLet = annotateLocationAST (reserved "let" *> letBinders <?> "let block")
   where
@@ -206,21 +203,6 @@ archIf = annotateLocationAST
               <?> "if"
   )
 
--- here we go...
--- the nix one uses makeExprParser and makes up nixTerm
--- but if we have no operator precedence...
--- wait, are we saying we have no operators?
--- well in the beginning I was thinking about operator overloading
--- now I'm thinking this might be too complicated
--- however how would we do it if we parameterised our parsers based on whats...
--- so.. the parser can rely on some sort of state
--- what would that be?
--- maybe we start with makeExprParser
--- and then try to continue (and see how we can abtract it out)
--- doesn't that mean as we continue parsing, it needs to change the fixity
--- I need to know how makeExprParser works though
-archExpr :: Parser ASTA.ASTLoc
-archExpr = undefined
 
 -- figuring out the expresssion system:....
 
@@ -274,50 +256,68 @@ archExpr = undefined
 --                  [ nixSelect nixSym ]
 
 
--- -- WHITESPACE is an operator as well!
--- -- that's what the NBinaryDef!
--- -- it is in this operator table
+-- here we go...
+-- the nix one uses makeExprParser and makes up nixTerm
+-- but if we have no operator precedence...
+-- wait, are we saying we have no operators?
+-- well in the beginning I was thinking about operator overloading
+-- now I'm thinking this might be too complicated
+-- however how would we do it if we parameterised our parsers based on whats...
+-- so.. the parser can rely on some sort of state
+-- what would that be?
+-- maybe we start with makeExprParser
+-- and then try to continue (and see how we can abtract it out)
+-- doesn't that mean as we continue parsing, it needs to change the fixity
+-- I need to know how makeExprParser works though
+archExpr :: Parser ASTA.ASTLoc
+archExpr = undefined
+-- use this!
+-- MPE.makeExprParser archTerm archOperators
 
+-- there is a recursion between 
 
--- here we define the operators that are relevant
--- if we want to overloaded operators, we would need to abstract this into a state
--- that can be changed by the parser
--- note that will also change the AST
--- we would need a generic operator ast
--- that can be specialised to whatever it needs to be
--- specifically whether the operator is unary or binary or whatever
--- depends on the type of the operator
--- but since we are not building a general purpose language, we'll leave this to the future!
+-- the only operator at the moment is whitespace
+-- which means function application!
 archOperators :: [[MPE.Operator Parser ASTA.ASTLoc]]
-archOperators =
-  [
-    [MPE.InfixL $ ASTA.apply <$ symbol ""], -- function application (with spaces)
-    [MPE.Prefix $ opWithLoc "-" AST.OpNeg ASTA.unaryApply] -- unary application
-  ]
+archOperators = [[MPE.InfixL $ ASTA.apply <$ symbol ""]]
 
-opWithLoc :: Text -> o -> (ASTA.AnnotateF ASTA.SourceLoc o -> a) -> Parser a
-opWithLoc name op f = do
-    ASTA.AnnotateF ann _ <- annotateLocation $ operator2 name
-    return $ f (ASTA.AnnotateF ann op)
+archTopLevel :: Parser ASTA.ASTLoc
+archTopLevel = archLet <|> archInt
 
--- this conflicts with the rest of the parser with regards to generic operators
--- we still don't understand this well enough to work with arbitrary operators in the langauage
--- so we will fix the number of operators directly (note that this operator is generic, but fixes it to specific things)
-operator2 :: Text -> Parser Text
-operator2 "-" = lexeme . MP.try $ MPC.string "-" <* MP.notFollowedBy (MPC.char '>')
-operator2 "/" = lexeme . MP.try $ MPC.string "/" <* MP.notFollowedBy (MPC.char '/')
-operator2 "<" = lexeme . MP.try $ MPC.string "<" <* MP.notFollowedBy (MPC.char '=')
-operator2 ">" = lexeme . MP.try $ MPC.string ">" <* MP.notFollowedBy (MPC.char '=')
-operator2 n   = symbol n
+-- don't paranthese represent precedence?
+-- they always get evaluated first then..
+-- the order gets determined by parantheses
 
--- still not sure what the point of the annotated asts is for
--- since we probably want to parse it into a tree that maintains some isomorphism with the original text
+-- we need to find out nixTerm
+-- which is the first one
+-- a term parser is just EVERYTHING else
+-- it is m a on `makeExprParser`
+-- since we have function application as an operator
+-- then everything else is valid term
+-- note that archTopLevel is just archLet <|> archInt
+-- but archLet is not on the same "level" as archInt
+-- so we should be comparing against archLet and archExpr
+-- let is a "syntax sugar"
+-- lists are also syntax sugar..
+-- since they are also valid syntax
+-- top level A = ...
+-- is also syntax sugar
+-- so by default an empty file is what exactly?
+-- and empty dictionary?
+-- what if you want export a function? Any term is addressable!
+-- wait that's it. Nix exprs are only addressable by the file
+-- Architect exprs are addressable at the expr, even within a file
+-- so it should work...
+-- files just represent a human readable modularity, all expressions are parsed at the same hierarchy!
+-- so yea, by default, the top level of a file should be just a hidden dictionary
 
--- fixing the operators like this is problematic
--- but we have a fixed set of operators
+{-
 
--- the term is meant to be a parser for stuff
--- the table lists the operators that are being utilised!
+nixToplevelForm :: Parser NExprLoc
+nixToplevelForm = keywords <+> nixLambda <+> nixExprLoc
+  where
+    keywords = nixLet <+> nixIf <+> nixAssert <+> nixWith
+-}
 
 -- evaluate :: AAST -> Integer
 -- evaluate = cata $ \case
@@ -327,3 +327,166 @@ operator2 n   = symbol n
 
 -- -- evaluate it like
 -- -- evaluate $ Fix $ ASTLiteral $ LitInt 1
+
+-- satisfy is :: (Token s -> Bool) -> m (Token s)
+-- lookahead :: m a -> m a
+-- so we have a predicate matching if the x is a pathCar, or `(` or `{`...
+-- so we have a try...
+
+-- there's a `pathChar` asking if the token is a path character?
+
+-- why are all these available characters?
+
+archTerm :: Parser ASTLoc
+archterm = do
+  -- look ahead for the c
+  -- if the c is something, we need to try something
+  c <- try $ lookAhead $ satisfy $ \c -> C.isAlpha c || C.isDigit c || c == '['
+  case c of
+    '[' -> archList
+
+
+pathChar :: Char -> Bool
+pathChar x = isAlpha x || isDigit x || x == '.' || x == '_' || x == '-' || x == '+' || x == '~'
+
+
+-- there are available characters
+-- it just means if we have () they get nixSelect nixParens
+
+nixTerm :: Parser NExprLoc
+nixTerm = do
+    -- if the char is neither of these things
+    -- then what happens?
+    -- usually the parser fails... so are we saying all nixTerms must be
+    -- either pathChar, ( or { or ... etc
+    -- all those have special things
+    -- but pathChar is saying it can be alpha... etc
+    c <- try $ lookAhead $ satisfy $ \x ->
+        pathChar x ||
+        x == '(' ||
+        x == '{' ||
+        x == '[' ||
+        x == '<' ||
+        x == '/' ||
+        x == '"' ||
+        x == '\''
+    case c of
+        '('  -> nixSelect (parens nixToplevelForm) -- expanded it since it wasn't important
+        '{'  -> nixSelect nixSet
+        '['  -> nixList
+        '<'  -> nixSPath
+        '/'  -> nixPath
+        '"'  -> nixStringExpr
+        '\'' -> nixStringExpr
+        _    -> msum $
+            [ nixSelect nixSet | c == 'r' ] ++
+            [ nixPath | pathChar c ] ++
+            if isDigit c
+            then [ nixFloat
+                 , nixInt ]
+            else [ nixUri | isAlpha c ] ++
+                 [ nixBool | c == 't' || c == 'f' ] ++
+                 [ nixNull | c == 'n' ] ++
+                 [ nixSelect nixSym ]
+
+selDot :: Parser ()
+selDot = try (symbol "." *> notFollowedBy nixPath) <?> "."
+
+nixPath :: Parser NExprLoc
+nixPath = annotateLocationAST (try (mkPathF False <$> pathStr) <?> "path")
+
+nixSelector :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
+nixSelector = annotateLocation $ do
+    (x:xs) <- keyName `sepBy1` selDot
+    return $ x :| xs
+
+nixSelect :: Parser NExprLoc -> Parser NExprLoc
+nixSelect term = do
+    res <- build <$> term <*> optional ((,) <$> (selDot *> nixSelector)
+                          <*> optional (reserved "or" *> nixTerm))
+    continues <- optional $ lookAhead selDot
+    case continues of
+        Nothing -> pure res
+        Just _  -> nixSelect (pure res)
+ where
+  build :: NExprLoc
+        -> Maybe (Ann SrcSpan (NAttrPath NExprLoc), Maybe NExprLoc)
+        -> NExprLoc
+  build t Nothing = t
+  build t (Just (s,o)) = nSelectLoc t s o
+
+-- optional :: f a -> f (Maybe a)
+
+-- why is continues?
+-- it is optional applied to a lookAhead of selDot
+
+-- so it tries to see if we havea selDot and it's NOT followed bya nixPath
+-- like whaaat?
+-- if we continue... then we return a pure res which is whatever that was
+-- if there is SOMETHING, then we run nixSelect on pure res again
+-- so what is this saying
+
+-- ({a = 3;}).a or 3 .a
+-- is it something like this?
+-- but wouldn't that get captured by the nixSelector?
+-- how is that possible!?
+-- cause the term (term nixToplevelForm) which should already get the ()
+-- how can there be more dots!?
+
+-- nix allows `({ a = { a = 3; }; }).a     .a`
+-- the whitespace doesn't matter, and its not a syntax error
+-- that's what's happening there
+-- that's why there's an extra continues
+-- and allows a recursive application
+-- cause I think that the nixSelector
+
+-- so I get what nixSelect does
+-- and that's because the point of nix expressions is that the whole thing is meant to resolve to anything
+-- i still think this sort of abstraction is strange
+-- its wrapping general terms (which is a recursive application of nixToplevelForm)
+-- with an optional wrapping of selection on it
+
+
+-- the term is nixParens
+-- nixSelect is very abstract
+-- the term which is nixParens
+-- is just parens nixToplevelForm
+-- ooo.. so it's actually recursive
+-- nixSelect nixParens
+-- is actually
+-- nixSelect (parens nixToplevelform)
+-- the parens takes in something
+-- but why pass it to nixSelect?
+
+-- build takes in ::
+-- ASTLoc ->
+-- Maybe (AnnotateF SourceLoc (AttrPath ASTLoc), Maybe ASTLoc) ->
+-- ASTLoc
+-- so a Maybe of a tuple
+-- where that tuple has a left of an Annotated structure containing an attribute path
+-- and Maybe an ASTloc
+-- then if Nothing, we just return the original ASTLoc
+-- if Just (s, o)... we use `nSelectLoc t s o`
+-- it's another annotated ast combinator taking astloc, annotated attribute path and a maybe astaloc
+-- what the hell is this!?
+-- what is NSelect?
+
+-- NSelect is for dot reference into an attribute set...
+-- it has r (NAttrPath r) (Maybe r)
+-- why?
+-- apparently
+
+-- so I'm getting it, the first thing is the structure, the second thing is the selector
+-- the third is some sort of default, but I'm not sure how any syntax allows that
+-- when using
+-- nSelectLoc t s o
+-- the t is the original term (or the parsed term)
+-- because term here is a `nixParens` which is a Parser of ASTLoc
+-- so there's also s, which is the annotated attribute path
+-- then the o is a Maybe NExprLoc
+-- so <$> will only apply it at a higher order function of a function
+-- applied to the term
+-- then it says <*> optional ... with selection dot, so that's the path selector
+-- then there's optional or (so there's an or construct now)
+-- `{ a = 123; }.b or 124`
+-- never saw that syntax before, but it makes sense, would rather have a function for that instead though to simplify the number of constructs
