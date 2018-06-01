@@ -11,8 +11,7 @@ module Architect.Parser where
 import qualified Architect.AST              as AST
 import qualified Architect.AST.Annotate     as ASTA
 import           Control.Applicative
-import           Control.Monad
-import           Control.Monad              (void)
+import           Control.Monad              (void, msum)
 import qualified Data.Char                  as C
 import           Data.Data
 import           Data.Fix
@@ -155,11 +154,13 @@ annotateLocationAST = fmap ASTA.fixCompose . annotateLocation
 
 archFloat :: Parser ASTA.ASTLoc
 archFloat = annotateLocationAST
-  ((AST.ASTLiteral . AST.LitFloat) <$> float <?> "float")
+  $ MP.try ((AST.ASTLiteral . AST.LitFloat) <$> float <?> "float")
 
 archInt :: Parser ASTA.ASTLoc
 archInt = annotateLocationAST
   ((AST.ASTLiteral . AST.LitInt) <$> integer <?> "integer")
+
+
 
 archName :: Parser ASTA.ASTLoc
 archName = annotateLocationAST
@@ -225,6 +226,13 @@ archIf = annotateLocationAST
 
 -- -- this is a lookahead, which means it doesn't consume anything
 
+-- nixSelect nixSym -- THIS MUST BE THE NAME
+-- although strings are pretty complex
+
+
+
+-- NSym
+
 -- nixTerm :: Parser NExprLoc
 -- nixTerm = do
 --     c <- try $ lookAhead $ satisfy $ \x ->
@@ -270,11 +278,8 @@ archIf = annotateLocationAST
 -- doesn't that mean as we continue parsing, it needs to change the fixity
 -- I need to know how makeExprParser works though
 archExpr :: Parser ASTA.ASTLoc
-archExpr = undefined
--- use this!
--- MPE.makeExprParser archTerm archOperators
+archExpr = MPE.makeExprParser archTerm archOperators
 
--- there is a recursion between 
 
 -- the only operator at the moment is whitespace
 -- which means function application!
@@ -284,136 +289,156 @@ archOperators = [[MPE.InfixL $ ASTA.apply <$ symbol ""]]
 archTopLevel :: Parser ASTA.ASTLoc
 archTopLevel = archLet <|> archInt
 
--- don't paranthese represent precedence?
--- they always get evaluated first then..
--- the order gets determined by parantheses
-
--- we need to find out nixTerm
--- which is the first one
--- a term parser is just EVERYTHING else
--- it is m a on `makeExprParser`
--- since we have function application as an operator
--- then everything else is valid term
--- note that archTopLevel is just archLet <|> archInt
--- but archLet is not on the same "level" as archInt
--- so we should be comparing against archLet and archExpr
--- let is a "syntax sugar"
--- lists are also syntax sugar..
--- since they are also valid syntax
--- top level A = ...
--- is also syntax sugar
--- so by default an empty file is what exactly?
--- and empty dictionary?
--- what if you want export a function? Any term is addressable!
--- wait that's it. Nix exprs are only addressable by the file
--- Architect exprs are addressable at the expr, even within a file
--- so it should work...
--- files just represent a human readable modularity, all expressions are parsed at the same hierarchy!
--- so yea, by default, the top level of a file should be just a hidden dictionary
-
-{-
-
-nixToplevelForm :: Parser NExprLoc
-nixToplevelForm = keywords <+> nixLambda <+> nixExprLoc
-  where
-    keywords = nixLet <+> nixIf <+> nixAssert <+> nixWith
--}
-
--- evaluate :: AAST -> Integer
--- evaluate = cata $ \case
---   ASTLiteral (LitInt n) -> n
---   ASTLiteral (LitFloat n) -> round n
---   _ -> 0
-
--- -- evaluate it like
--- -- evaluate $ Fix $ ASTLiteral $ LitInt 1
-
--- satisfy is :: (Token s -> Bool) -> m (Token s)
--- lookahead :: m a -> m a
--- so we have a predicate matching if the x is a pathCar, or `(` or `{`...
--- so we have a try...
-
--- there's a `pathChar` asking if the token is a path character?
-
--- why are all these available characters?
-
-archTerm :: Parser ASTLoc
-archterm = do
-  -- look ahead for the c
-  -- if the c is something, we need to try something
-  c <- try $ lookAhead $ satisfy $ \c -> C.isAlpha c || C.isDigit c || c == '['
+-- when using msum order matters
+-- especially with things that need to be tried
+archTerm :: Parser ASTA.ASTLoc
+archTerm = do
+  c <- MP.try
+    $ MP.lookAhead
+    $ MPC.satisfy
+    $ \c -> C.isAlpha c || C.isDigit c || c == '['
   case c of
     '[' -> archList
+    _   -> msum
+      $ if C.isDigit c then [archFloat, archInt] else [archName]
+
+archOperator = annotateLocationAST
+  ((AST.ASTName . AST.NameSymbol) <$> operator <?> "namesymbol")
+
+-- wait this is meant to be nixStringExpr
+archStringExpr :: Parser ASTA.ASTLoc
+archStringExpr = annotateLocationAST archString
+
+-- the reason this is outside, is that it gets used by something else
+-- that doesn't want the ASTLoc although I'd argue that's pointless
+-- continue with strings...
+archString :: Parser (AST.Str ASTA.ASTLoc)
+archString = lexeme (doubleQuoted <|> indented <?> "string")
+  where
+    doubleQuoted = StrQuoted . removePlainEmpty . mergePlain
+                   <$> (doubleQ *> many (stringChar doubleQ (void $ char '\\') doubleEscape) <* doubleQ)
+    indented = undefined
+
+archList :: Parser ASTA.ASTLoc
+archList = annotateLocationAST
+  (squareBrace (AST.ASTList <$> many archTerm) <?> "list")
+
+-- so here we are parsing strings!
 
 
-pathChar :: Char -> Bool
-pathChar x = isAlpha x || isDigit x || x == '.' || x == '_' || x == '-' || x == '+' || x == '~'
+-- the reason it's so weird, is cause we are using annotateLocation
+-- note annotateLocationAST
+-- which should be producing an ast
+-- annotateLocation just produces the annotate functor
+-- whereas annotateLocationAST produces the ASTLoc (which is a composed functor of ASTF and AnnotateF with Fix applied to it)
+-- if we are usign annotateLocation
+-- it is because we are annotating a parser
+-- in this  case Parser (Text)
+-- or whatever
+-- actually nixString is :: Parser (NString NExprLoc)
+-- so I'm wondering why not just use annotateLocationAST
+-- annotateLocationAST :: Parser (AST.ASTF ASTA.ASTLoc) -> Parser ASTA.ASTLoc
+-- as you can see, as long as something is parsing the AST, we can just use annotateLocationAST
+-- instead it wants to
+-- nixStringExpr :: Parser NExprLoc
+-- nixStringExpr = nStr <$> annotateLocation nixString
+--use the nStr function
+-- nStr :: Ann SrcSpan (NString NExprLoc) -> NExprLoc
+-- nStr  (Ann s1 s) = AnnE s1 (NStr s)
+-- it's just Fix Compose of Ann ann a
+-- lol... this is basically just annotateLocationAST
 
 
--- there are available characters
--- it just means if we have () they get nixSelect nixParens
 
-nixTerm :: Parser NExprLoc
-nixTerm = do
-    -- if the char is neither of these things
-    -- then what happens?
-    -- usually the parser fails... so are we saying all nixTerms must be
-    -- either pathChar, ( or { or ... etc
-    -- all those have special things
-    -- but pathChar is saying it can be alpha... etc
-    c <- try $ lookAhead $ satisfy $ \x ->
-        pathChar x ||
-        x == '(' ||
-        x == '{' ||
-        x == '[' ||
-        x == '<' ||
-        x == '/' ||
-        x == '"' ||
-        x == '\''
-    case c of
-        '('  -> nixSelect (parens nixToplevelForm) -- expanded it since it wasn't important
-        '{'  -> nixSelect nixSet
-        '['  -> nixList
-        '<'  -> nixSPath
-        '/'  -> nixPath
-        '"'  -> nixStringExpr
-        '\'' -> nixStringExpr
-        _    -> msum $
-            [ nixSelect nixSet | c == 'r' ] ++
-            [ nixPath | pathChar c ] ++
-            if isDigit c
-            then [ nixFloat
-                 , nixInt ]
-            else [ nixUri | isAlpha c ] ++
-                 [ nixBool | c == 't' || c == 'f' ] ++
-                 [ nixNull | c == 'n' ] ++
-                 [ nixSelect nixSym ]
 
-selDot :: Parser ()
-selDot = try (symbol "." *> notFollowedBy nixPath) <?> "."
+-- nixTerm :: Parser NExprLoc
+-- nixTerm = do
+--     -- if the char is neither of these things
+--     -- then what happens?
+--     -- usually the parser fails... so are we saying all nixTerms must be
+--     -- either pathChar, ( or { or ... etc
+--     -- all those have special things
+--     -- but pathChar is saying it can be alpha... etc
+--     c <- try $ lookAhead $ satisfy $ \x ->
+--         pathChar x ||
+--         x == '(' ||
+--         x == '{' ||
+--         x == '[' ||
+--         x == '<' ||
+--         x == '/' ||
+--         x == '"' ||
+--         x == '\''
+--     case c of
+--         '('  -> nixSelect (parens nixToplevelForm) -- expanded it since it wasn't important
+--         '{'  -> nixSelect nixSet
+--         '['  -> nixList
+--         '<'  -> nixSPath
+--         '/'  -> nixPath
+--         '"'  -> nixStringExpr
+--         '\'' -> nixStringExpr
+--         _    -> msum $
+--             [ nixSelect nixSet | c == 'r' ] ++
+--             [ nixPath | pathChar c ] ++
+--             if isDigit c
+--             then [ nixFloat , nixInt ]
+--             else [ nixUri | isAlpha c ] ++
+--                  [ nixBool | c == 't' || c == 'f' ] ++
+--                  [ nixNull | c == 'n' ] ++
+--                  [ nixSelect nixSym ]
 
-nixPath :: Parser NExprLoc
-nixPath = annotateLocationAST (try (mkPathF False <$> pathStr) <?> "path")
+-- {-
 
-nixSelector :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
-nixSelector = annotateLocation $ do
-    (x:xs) <- keyName `sepBy1` selDot
-    return $ x :| xs
+-- nixToplevelForm :: Parser NExprLoc
+-- nixToplevelForm = keywords <+> nixLambda <+> nixExprLoc
+--   where
+--     keywords = nixLet <+> nixIf <+> nixAssert <+> nixWith
+-- -}
 
-nixSelect :: Parser NExprLoc -> Parser NExprLoc
-nixSelect term = do
-    res <- build <$> term <*> optional ((,) <$> (selDot *> nixSelector)
-                          <*> optional (reserved "or" *> nixTerm))
-    continues <- optional $ lookAhead selDot
-    case continues of
-        Nothing -> pure res
-        Just _  -> nixSelect (pure res)
- where
-  build :: NExprLoc
-        -> Maybe (Ann SrcSpan (NAttrPath NExprLoc), Maybe NExprLoc)
-        -> NExprLoc
-  build t Nothing = t
-  build t (Just (s,o)) = nSelectLoc t s o
+-- -- evaluate :: AAST -> Integer
+-- -- evaluate = cata $ \case
+-- --   ASTLiteral (LitInt n) -> n
+-- --   ASTLiteral (LitFloat n) -> round n
+-- --   _ -> 0
+
+-- -- -- evaluate it like
+-- -- -- evaluate $ Fix $ ASTLiteral $ LitInt 1
+
+-- -- satisfy is :: (Token s -> Bool) -> m (Token s)
+-- -- lookahead :: m a -> m a
+-- -- so we have a predicate matching if the x is a pathCar, or `(` or `{`...
+-- -- so we have a try...
+
+-- -- there's a `pathChar` asking if the token is a path character?
+
+-- -- why are all these available characters?
+
+
+
+
+
+-- -- there are available characters
+-- -- it just means if we have () they get nixSelect nixParens
+
+
+-- nixSelector :: Parser (Ann SrcSpan (NAttrPath NExprLoc))
+-- nixSelector = annotateLocation $ do
+--     (x:xs) <- keyName `sepBy1` selDot
+--     return $ x :| xs
+
+-- nixSelect :: Parser NExprLoc -> Parser NExprLoc
+-- nixSelect term = do
+--     res <- build <$> term <*> optional ((,) <$> (selDot *> nixSelector)
+--                           <*> optional (reserved "or" *> nixTerm))
+--     continues <- optional $ lookAhead selDot
+--     case continues of
+--         Nothing -> pure res
+--         Just _  -> nixSelect (pure res)
+--  where
+--   build :: NExprLoc
+--         -> Maybe (Ann SrcSpan (NAttrPath NExprLoc), Maybe NExprLoc)
+--         -> NExprLoc
+--   build t Nothing = t
+--   build t (Just (s,o)) = nSelectLoc t s o
 
 -- optional :: f a -> f (Maybe a)
 
