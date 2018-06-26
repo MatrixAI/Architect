@@ -36,16 +36,20 @@ import qualified Text.Show.Deriving         as SD
 data ASTF r = ASTLiteral Lit
             | ASTString (Str r)
             | ASTName Name
-            | ASTList [r]
-            | ASTAttrSet [Binding r]
+            | ASTLambda (Lambda r) r
             | ASTLet [Binding r] r
-            | ASTIf r r r
-            | ASTSelect r (KeyPath r)
             | ASTUnary UnaryOp r
             | ASTBinary BinaryOp r r
+            | ASTList [r]
+            | ASTAttrSet [Binding r]
+            | ASTIf r r r
+            | ASTSelect r (KeyPath r)
             deriving (Show, Eq, Ord, Functor, Generic, Generic1)
 
 type AST = Fix ASTF
+
+data Lambda r = LambdaParam Text
+              deriving (Show, Eq, Ord, Functor, Generic, Generic1)
 
 data Binding r = Binding (Key r) r MPP.SourcePos
                deriving (Show, Eq, Ord, Functor, Generic, Generic1)
@@ -135,13 +139,13 @@ instance Show1 Key where
 data UnaryOp = OpNeg | OpNot
   deriving (Show, Read, Eq, Ord, Generic)
 
-data BinaryOp = OpEq
+data BinaryOp = OpApply
+              | OpEq
               | OpNEq
               | OpPlus
               | OpMinus
               | OpMult
               | OpDiv
-              | OpApply -- Function application
               deriving (Show, Read, Eq, Ord, Generic)
 
 -- Template Haskell Derivations
@@ -149,6 +153,7 @@ data BinaryOp = OpEq
 -- the order matters here
 
 $(SD.deriveShow1 ''ASTF)
+$(SD.deriveShow1 ''Lambda)
 $(SD.deriveShow1 ''Binding)
 $(SD.deriveShow1 ''Str)
 $(SD.deriveShow1 ''Quote)

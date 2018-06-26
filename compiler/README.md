@@ -733,3 +733,59 @@ Reading:
 * https://hackernoon.com/megaparsec-same-syntax-more-features-b8f9b844bb02
 * https://www.stackbuilders.com/tutorials/haskell/generics/
 * http://dev.stephendiehl.com/fun/
+
+---
+
+Ok we were working on operators. And trying to adapt the Hnix compiler to our needs.
+
+Summarise:
+
+The `AST.hs` defines a recursive AST functor `ASTF`. It has literals, strings, binding names, lists, attrset, let, if, selection, unary and binary operators.
+
+Note that the usage of `unaryop` and `binaryop` is a bit weird.
+
+If we want overloadable operators, it will be difficult to use the existing `makeExprParser`. But because our langauge is a DSL, there's no need for now.
+
+Although I would prefer it to be more general. So for we are expecting fixed unary and binary operators. Later I would like to see how to apply custom operators.
+
+https://github.com/mrkkrp/megaparsec/issues/299
+
+The main problem is that the parser will need to be dynamically updated as it encounters new operators. The parsing will need to have several passes. Because there may be a module that imports another module, and that may bring in infix operators. Well that doesn't work in a networked expression format. Since a new expression may be brought in that introduces operators. The point is that that the import may bring in operators that can be used. But any operators that is recognised will need to change the parser state.
+
+Currently the issue mentions that the fixity can be parameterised in the parser. So a parser could depend on some sort of state that changes dynamically.
+
+Ok let's continue. Note that the `ASTF` does not have a literal application construct. As in if we have `ASTLambda` to resemble lambda abstraction. So we don't have that construct. But definitely `space` is used for that operator.
+
+The original one was `NExprF`.
+
+Oh there we go we have `NAbs` which represents a function literal. Which are all lambda functions, there are no named functions. Ah yes... that's how we achieve recursion. We always have lambda head and lambda body. The lambda body is always just exactly the another recursive expression. It could be that they use `NBinary` along with `space` application operator. Yep that's exactly it. They have `NApp` to represent application operation.
+
+Things like lists and other constructors could be abstracted as well, except that they are not operators... They are "nested" constructors, so concepts like `[]` and `()` and stuff like that. Overloadable syntax seems like an interesting idea. But that's a completely different language problem. We cannot have symbols as names for bindings right? Wait why not? If we are saying that a `Name` can be alpha or symbol both of which are text. Why not allow:
+
+```
+\% -> % + 1
+```
+
+We are just using `%` as a name! It has not been reserved as an operator. However if it does get reserved as an operator. Then the meaning of this changes. It could mean that `%` is a function, that takes `+` as the first argument, and the result is then `1`.
+
+```
+((%) +) 1
+```
+
+We do differentiate `NameAlpha` and `NameSymbol`. Although I'm not sure about `function` when the backticks are used. So we may have an issue there.
+
+```
+a `function` b
+```
+
+It's getting used as a binary operator, we change the way it works. We need to dig deeper.
+
+It's also important that we have an untyped language.
+
+So I've now added `ASTLambda`.
+
+We are only working on the frontend of the language.
+
+```
+stack ghci src/Architect/AST.hs
+```
