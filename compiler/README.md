@@ -719,3 +719,17 @@ operator2 "<" = lexeme . MP.try $ MPC.string "<" <* MP.notFollowedBy (MPC.char '
 operator2 ">" = lexeme . MP.try $ MPC.string ">" <* MP.notFollowedBy (MPC.char '=')
 operator2 n   = symbol n
 ```
+
+---
+
+Reading:
+
+* http://mpickering.github.io/posts/2015-12-12-pattern-synonyms-8.html
+* http://newartisans.com/2018/04/win-for-recursion-schemes/
+* http://blog.sumtypeofway.com/recursion-schemes-part-41-2-better-living-through-base-functors/
+* http://blog.sumtypeofway.com/an-introduction-to-recursion-schemes/
+* https://hackage.haskell.org/package/megaparsec-6.5.0/docs/doc-index-All.html 
+* https://csinaction.com/2015/03/31/custom-infix-operators-in-haskell/
+* https://hackernoon.com/megaparsec-same-syntax-more-features-b8f9b844bb02
+* https://www.stackbuilders.com/tutorials/haskell/generics/
+* http://dev.stephendiehl.com/fun/
