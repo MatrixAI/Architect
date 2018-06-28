@@ -34,6 +34,12 @@ import qualified Text.Megaparsec.Expr       as MPE
 
 type Parser = MP.Parsec Void Text
 
+-- one of the things I wanted to avoid with this parser is how recursive it is
+-- it makes it difficult to build up incrementally
+-- if we break it up in smaller parts and test things independently
+-- that would be good
+-- can we do that with our lower level stuff?
+
 symbol :: Text -> Parser Text
 symbol = MPL.symbol spaces
 

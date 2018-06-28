@@ -789,3 +789,7 @@ We are only working on the frontend of the language.
 ```
 stack ghci src/Architect/AST.hs
 ```
+
+---
+
+So we have lambda and application, we need to parse into them.
