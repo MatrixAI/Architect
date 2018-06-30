@@ -6,6 +6,10 @@
 ## Session Types
 * http://spw17.langsec.org/papers/tse-validating-session-protocols.pdf
 * https://github.com/epsrc-abcd/session-types-use-cases
+* [Nested Session Types](http://mrg.doc.ic.ac.uk/publications/nested-protocols-in-session-types/subsessioncam.pdf)
+    * [Reference 9: Multiparty Session Types](http://mrg.doc.ic.ac.uk/publications/dynamic-multirole-session-types/dynamic-multirole-session-types.pdf)
+
+## Subtyping Recursive Types
 
 ## Other
 * http://simonjf.com/writing/bsc-dissertation.pdf

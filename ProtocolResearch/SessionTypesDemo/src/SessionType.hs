@@ -10,11 +10,13 @@ module SessionType
     , union
     , smartUnion
     , strictUnion
+    -- , recurse -- Infinite types are messy and impractical
     ) where
 
 import qualified Data.Map.Merge.Strict as Merge
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
+import Data.Function (fix)
 
 -- Placeholder for actual types, must be Eq
 data Type
@@ -126,3 +128,13 @@ smartUnion :: SessionType -> SessionType -> Maybe SessionType
 smartUnion (Choose m) (Choose n)    = Choose <$> smartUnion' m n
 smartUnion (Offer m) (Offer n)      = Offer <$> smartUnion' m n
 smartUnion _ _                      = Nothing
+
+-- Nothing complicated
+simpleUnion :: [(String, SessionType)] -> Maybe SessionType
+simpleUnion [] = Nothing
+simpleUnion list = Just $ Offer (Map.fromList list)
+
+{-  Turns a looping or recursive session type into a fully defined
+    (possibly infinite) session type -}
+recurse :: (SessionType -> SessionType) -> SessionType
+recurse = fix

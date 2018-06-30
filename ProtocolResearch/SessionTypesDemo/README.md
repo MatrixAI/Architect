@@ -92,6 +92,16 @@ This function represents a combinator that looks at all of the messages, includi
 
 `union` will work whenever `smartUnion` does and act in the same way, so if `isJust (smartUnion a b)`, then `smartUnion a b == union a b`.
 
+#### simpleUnion
+
+This function uses the builtin `Offer` constructor to union multiple session types. It has no nice properties.
+
+#### recurse
+
+Use: `recurse $ \x -> Offer (fromList [("continue",x),("end",Kill)])`.
+
+Shorthand for mu notation.
+
 ## Spec.hs
 
 This file includes instances of `Arbitrary` for both `Type` and `SessionType`, and then a variety of tests of some examples and properties of the functions.
