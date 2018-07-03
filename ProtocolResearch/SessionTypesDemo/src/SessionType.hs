@@ -22,6 +22,10 @@ import Data.Fix (Fix(..), unFix, cata)
 import Control.Arrow ((>>>))
 import Control.Applicative (liftA2)
 
+-- Zips a Fix type
+zipo :: Functor f => (f (Fix f -> a) -> f (Fix f) -> a) -> Fix f -> Fix f -> a
+zipo alg = cata (\x -> alg x . unFix)
+
 -- Placeholder for actual types, must be Eq
 data Type
     = INT
@@ -114,20 +118,26 @@ infix 8 <:
 (<:) :: SessionType -> SessionType -> Bool
 (<:) = isSubType
 
+-- Checks two lists are the same size, then zips and checks all yield true
+checkLists :: (a -> b -> Bool) -> [a] -> [b] -> Bool
+checkLists f x y = (length x == length y) && all id (zipWith f x y)
+
 -- Determines if the first is a subtype of the second
-isSubTypeSimple :: (SimpleSession, SimpleSession) -> Bool
-isSubTypeSimple (x,y) = case (unFix x, unFix y) of
+isSubTypeSimple :: SimpleSession -> SimpleSession -> Bool
+isSubTypeSimple = zipo $ \a b -> case (a,b) of
+    (Send t, Send u)        -> t == u
+    (Recv t, Recv u)        -> t == u
     -- The subtype chooses from fewer options
-    (Choose m, Choose n)    -> Map.isSubmapOfBy isSubType m n
+    (Choose m, Choose n)    -> Map.isSubmapOfBy (checkLists ($)) m n
     -- The subtype offers extra options
-    (Offer m, Offer n)      -> Map.isSubmapOfBy (flip isSubType) n m
-    (Mu a, Mu b)            -> isSubType a b
+    (Offer m, Offer n)      -> Map.isSubmapOfBy (checkLists $ flip ($)) n m
+    (Mu a, Mu b)            -> checkLists ($) a b
     (Ref k, Ref l)          -> k == l
-    (a,b)                   -> a == b
+    _                       -> False
 
 -- Determines if the first is a subtype of the second
 isSubType :: SessionType -> SessionType -> Bool
-isSubType x y = (length x == length y) && (all isSubTypeSimple $ zip x y)
+isSubType = checkLists isSubTypeSimple
 
 -- Constructs the dual of a simple session type
 dualSimple :: SimpleSession -> SimpleSession
@@ -142,14 +152,14 @@ dualSimple = cata $ \x -> case x of
 dual :: SessionType -> SessionType
 dual = fmap dualSimple
 
-infix 9 <=>
+infix 8 <=>
 (<=>) :: SessionType -> SessionType -> Bool
 (<=>) = isCompatible
 
 -- Determines if two types can communicate
 isCompatible :: SessionType -> SessionType -> Bool
 isCompatible a b = a <: dual b -- && b <: dual a (These are equivalent)
---
+
 -- strictUnion' :: Branches -> Branches -> Maybe Branches
 -- strictUnion' m n
 --     | null (Map.intersection m n)   = Just $ Map.union m n

@@ -12,7 +12,7 @@ import Control.Applicative (liftA2)
 instance Arbitrary Type where
     arbitrary = QC.elements [INT, STRING, BOOL]
 
--- Takes a max reference and a max size to make arbitrary branches
+-- Takes a max reference and a max size to make arbitrary valid branches
 sizedRefMap :: Integer -> Int -> QC.Gen Branches
 sizedRefMap maxref size = do
     branches <- QC.choose (1,size)
@@ -22,7 +22,7 @@ sizedRefMap maxref size = do
         return (key, value)
     return $ Map.fromList list
 
--- Takes a max reference and a max size to make an arbitrary session type
+-- Takes a max reference and a max size to make an arbitrary valid session type
 sizedRefSession :: Integer -> Int -> QC.Gen SessionType
 sizedRefSession _ 0 = return end
 sizedRefSession 0 1 = QC.oneof
@@ -35,27 +35,41 @@ sizedRefSession maxref 1 = QC.oneof
     , ref <$> QC.choose (1,maxref)
     ]
 sizedRefSession maxref size = QC.oneof
-    [ liftA2 join (sizedRefSession maxref 1) (sizedRefSession maxref (size-1))
-    , choose <$> sizedRefMap maxref size
-    , offer <$> sizedRefMap maxref size
+    [ do
+        firstSize <- QC.choose (1,size-1)
+        first <- sizedRefSession maxref firstSize
+        second <- sizedRefSession maxref (size-firstSize)
+        return $ join first second
+    , choose <$> sizedRefMap maxref (size-1)
+    , offer <$> sizedRefMap maxref (size-1)
     , mu <$> sizedRefSession (maxref+1) (size-1)
     ]
 
+-- Takes a max size to make an arbitrary valid session type
 sizedSession :: Int -> QC.Gen SessionType
 sizedSession = sizedRefSession 0
 
 validSession :: QC.Gen SessionType
 validSession = QC.sized sizedSession
 
-invalidSession :: QC.Gen SessionType
-invalidSession = QC.elements
-    [ ref (-1)
+smallInvalid :: QC.Gen SessionType
+smallInvalid = QC.elements
+    [ ref 0
     , choose Map.empty
     , offer Map.empty
     , choose $ Map.singleton "" end
     , offer $ Map.singleton "" end
     ]
 
+-- Makes an invalid session type
+invalidSession :: QC.Gen SessionType
+invalidSession = do
+    before <- validSession
+    invalid <- smallInvalid
+    after <- validSession
+    return $ before ++ invalid ++ after
+
+-- 50/50 valid and invalid session types
 anySession :: QC.Gen SessionType
 anySession = QC.oneof [validSession, invalidSession]
 
@@ -109,7 +123,7 @@ main = hspec $ do
             forAll anySession $ \a ->
                 \c s -> isValid (offer $ Map.singleton (c:s) a) === isValid a
 
-        it "won't fail a valid SessionType in Mu" $
+        it "won't fail a valid SessionType in a fixpoint" $
             forAll validSession $ \a ->
                 isValid (mu a)
 
@@ -170,8 +184,6 @@ main = hspec $ do
             forAll validSession $ \c ->
                 (a <: b && b <: c) --> a <: c
 
-        -- Nesting properties
-
         it "matches end to end only" $
             forAll validSession $ \a ->
                 (a <: end || end <: a) === (a == end)
@@ -200,6 +212,11 @@ main = hspec $ do
             forAll validSession $ \b ->
                 (a <: b) === (mu a <: mu b)
 
+        it "preserves subtypes when loops are added" $
+            forAll validSession $ \a ->
+            forAll validSession $ \b ->
+                (a <: b) === (mu (a `join` ref 1) <: mu (b `join` ref 1))
+
     describe "SessionType.dual" $ do
         it "constructs the dual of a SessionType" $ do
             dual end `shouldBe` end
@@ -207,32 +224,42 @@ main = hspec $ do
             dual (recv BOOL) `shouldBe` send BOOL
             dual (choose $ Map.singleton "post" (send INT)) `shouldBe`
                 (offer $ Map.singleton "post" (recv INT))
-            dual (offer $ Map.singleton "get" (recv INT)) `shouldBe`
-                (choose $ Map.singleton "get" (send INT))
+            dual (offer $ Map.singleton "get" (recv BOOL)) `shouldBe`
+                (choose $ Map.singleton "get" (send BOOL))
 
-    --     it "is its own inverse" $ property $
-    --         \a -> dual (dual a) == a
-    --
-    --     it "is bijective" $ property $
-    --         \a b -> (dual a == dual b) == (a == b)
-    --
-    --     it "constructs the dual of a SessionType in Send" $ property $
-    --         \a t -> dual (Send t a) == Recv t (dual a)
-    --
-    --     it "constructs the dual of a SessionType in Recv" $ property $
-    --         \a t -> dual (Recv t a) == Send t (dual a)
-    --
-    --     it "constructs the dual of a SessionType in Choose" $ property $
-    --         \a s -> dual (Choose $ Map.singleton s a) ==
-    --             Offer (Map.singleton s $ dual a)
-    --
-    --     it "constructs the dual of a SessionType in Option" $ property $
-    --         \a s -> dual (Offer $ Map.singleton s a) ==
-    --             Choose (Map.singleton s $ dual a)
-    --
-    --     it "inverts subtypes" $ property $
-    --         \a b -> a <: b == dual b <: dual a
-    --
+        it "is its own inverse" $
+            forAll validSession $ \a ->
+                dual (dual a) === a
+
+        it "is bijective" $
+            forAll validSession $ \a ->
+            forAll validSession $ \b ->
+                (dual a == dual b) === (a == b)
+
+        it "constructs duals when concatenated" $
+            forAll validSession $ \a ->
+            forAll validSession $ \b ->
+                dual (a `join` b) === dual a `join` dual b
+
+        it "constructs the dual of a SessionType in Choose" $
+            forAll validSession $ \a ->
+                \c s -> dual (choose $ Map.singleton (c:s) a) ===
+                    offer (Map.singleton (c:s) $ dual a)
+
+        it "constructs the dual of a SessionType in Option" $
+            forAll validSession $ \a ->
+                \c s -> dual (offer $ Map.singleton (c:s) a) ===
+                    choose (Map.singleton (c:s) $ dual a)
+
+        it "constructs the dual of a SessionType in a fixpoint" $
+            forAll validSession $ \a ->
+                dual (mu a) === mu (dual a)
+
+        it "inverts subtypes" $
+            forAll validSession $ \a ->
+            forAll validSession $ \b ->
+                a <: b === dual b <: dual a
+
     describe "SessionType.isCompatible" $ do
         it "checks if two session types can communicate" $ do
             end `shouldSatisfy` (<=> end)
@@ -245,33 +272,44 @@ main = hspec $ do
             (offer $ Map.singleton "a" end) `shouldNotSatisfy`
                 (<=> choose (Map.fromList [("a",end),("b",end)]))
 
-    --     -- Relation property
-    --     it "is symmetric" $ property $
-    --         \a b -> a <=> b == b <=> a
-    --
-    --     it "is always satisfied by duals" $ property $
-    --         \a -> a <=> dual a && dual a <=> a
-    --
-    --     -- Nesting properties
-    --
-    --     it "determines compatibility inside a Send/Recv" $ property $
-    --         \a b t -> a <=> b == Send t a <=> Recv t b
-    --
-    --     it "determines compatibility inside a Choose/Offer" $ property $
-    --         \a b s -> a <=> b ==
-    --             Offer (Map.singleton s a) <=> Choose (Map.singleton s b)
-    --
-    --
-    --
-    --     it "matches Wait to Kill only" $ property $
-    --         \a -> a <=> Wait == (a == Kill)
-    --
-    --     it "matches Kill to Wait only" $ property $
-    --         \a -> a <=> Kill == (a == Wait)
-    --
-    --     it "matches subtypes when supertypes match" $ property $
-    --         \a b c -> (a <: b && b <=> c) --> a <=> c
-    --
+        it "is symmetric" $
+            forAll validSession $ \a ->
+            forAll validSession $ \b ->
+                a <=> b === b <=> a
+
+        it "is always satisfied by duals" $
+            forAll validSession $ \a ->
+                a <=> dual a .&&. dual a <=> a
+
+        it "determines compatibility after concatenation" $
+            forAll validSession $ \a ->
+            forAll validSession $ \b ->
+            forAll validSession $ \c ->
+                ((a <=> b) === (a `join` c <=> b `join` c)) .&&.
+                ((a <=> b) === (c `join` a <=> c `join` b))
+
+        it "determines compatibility inside a Choose/Offer" $
+            forAll validSession $ \a ->
+            forAll validSession $ \b ->
+                \c s -> a <=> b ===
+                    offer (Map.singleton (c:s) a) <=>
+                    choose (Map.singleton (c:s) b)
+
+        it "determines compatibility inside a Fixpoint" $
+            forAll validSession $ \a ->
+            forAll validSession $ \b ->
+                a <=> b === mu a <=> mu b
+
+        it "matches End to End only" $
+            forAll validSession $ \a ->
+                a <=> end === (a == end)
+
+        it "matches subtypes when supertypes match" $
+            forAll validSession $ \a ->
+            forAll validSession $ \b ->
+            forAll validSession $ \c ->
+                (a <: b && b <=> c) --> a <=> c
+
     -- describe "SessionType.strictUnion" $ do
     --     it "combines two protocols if possible and unambiguous" $ do
     --         strictUnion (Choose $ Map.singleton "a" Wait)

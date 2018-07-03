@@ -2,10 +2,10 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4f667d8cb8b912935320a38f769ec6b3f91a6d1d3a1bf7792d8ab7ade3947dce
+-- hash: 7d1c45a6a5b9fc2d6aa8f0609108950954cbdabc7eba6af7aacb0cda720955f7
 
 name:           session-types
-version:        0.1.0.0
+version:        0.2.0.0
 description:    Please see the README on Github at <https://github.com/MatrixAI/Architect/ProtocolResearch/SessionTypesDemo#readme>
 homepage:       https://github.com/MatrixAI/Architect/ProtocolResearch/SessionTypesDemo#readme
 bug-reports:    https://github.com/MatrixAI/Architect/ProtocolResearch/SessionTypesDemo/issues
