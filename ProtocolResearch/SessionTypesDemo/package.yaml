@@ -1,5 +1,5 @@
 name:                session-types
-version:             0.1.0.0
+version:             0.2.0.0
 github:              "MatrixAI/Architect/ProtocolResearch/SessionTypesDemo"
 license:             Apache-2.0
 author:              "Oliver Scarlet"
@@ -22,6 +22,7 @@ description:         Please see the README on Github at <https://github.com/Matr
 dependencies:
 - base >= 4.7 && < 5
 - containers # Data.Map
+- data-fix
 
 library:
   source-dirs: src
