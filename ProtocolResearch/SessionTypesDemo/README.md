@@ -10,25 +10,23 @@ The type `Type` is a placeholder for the types of data that could be communicate
 
 ### SessionType
 
-`SessionType` is a recursive data structure for representing one side of a typed communication channel. Its constructors represent the main actions of choosing branches, communicating typed data, and ending the communication.
+`SessionType` is a recursive data structure for representing one side of a typed communication channel. Internally, it is a list containing a recursive structure, and should be constructed using the exposed functions. It is important this is an instance of `Eq`, and for testing that it is an instance of `Show`.
 
-#### Wait and Kill
+#### End
 
-These constructors represent ending the communication. `Wait`, often notated end<sub>?</sub> in literature, represents waiting for the other peer to end the communication. `Kill`, often notated end<sub>!</sub>, represents actively ending the communication.
-
-In some literature, these two Session Types are merged into a single Session Type, notated end. This implementation may be changed to match that in future.
+The function `end` constructs a session type representing no communication. Internally, this is represented as an empty list. For any `a :: SessionType`, `a ++ end == a` and `end ++ a == a`.
 
 #### Send and Recv
 
-These constructors represent the communication of data. `Send t a`, often notated ? t . a, or t <?> a, represents sending data of type `t` to the other peer, then continuing with Session Type `a`. `Recv t a`, often notated ! t . a, or t <!> a, represents receiving data of type `t` from the other peer, then continuing with Session Type `a`.
+The functions `send` and `recv` represent the communication of data, and take a `Type` that is being transferred. These would be notated as !Type and ?Type respectively, though session types notated recursively such as !Type.SessionType and Type <?> SessionType can be implemented by concatenation.
 
 #### Choose and Offer
 
 These constructors represent branching to multiple possible Session Types. Unlike many notations, there can be any positive integral number of branches, and they are labelled with strings. This is based on the notation presented in http://homepages.inf.ed.ac.uk/wadler/papers/gradsess/gradsess.pdf.
 
-`Choose m`, often notated b + d, b ⊕ d, +{a:b, c:d}, or ⊕{a:b, c:d}, represents actively choosing one of the Session Types stored as values in the Map `m`, which is keyed by Strings that label each of the options. The notation +{a:b, c:d} would be constructed by `Choose (fromList [("a",b),("c",d)])`.
+`choose m`, often notated b + d, b ⊕ d, +{a:b, c:d}, or ⊕{a:b, c:d}, represents actively choosing one of the Session Types stored as values in the Map `m`, which is keyed by Strings that label each of the options. The notation +{a:b, c:d} would be constructed by `choose (fromList [("a",b),("c",d)])`.
 
-`Offer m`, often notated b & d, or &{a:b, c:d}, represents offering the peer a choice of one of the Session Types stored as values in the Map `m`, which is keyed by Strings that label each of the options. The notation &{a:b, c:d} would be constructed by `Offer (fromList [("a",b),("c",d)])`.
+`offer m`, often notated b & d, or &{a:b, c:d}, represents offering the peer a choice of one of the Session Types stored as values in the Map `m`, which is keyed by Strings that label each of the options. The notation &{a:b, c:d} would be constructed by `offer (fromList [("a",b),("c",d)])`.
 
 Neither `Offer` nor `Choose` can have an empty set of options, and no label may be the empty string.
 
@@ -38,15 +36,23 @@ Neither `Offer` nor `Choose` can have an empty set of options, and no label may 
 
  -->
 
+#### Concatenation
+
+`join` is a synonym for `(++)`, since session types are internally lists. Hence, for any session types `a` and `b`, `a++b == join a b`.
+
+#### Fixpoints or Loops
+
+`mu` and `ref` are used to construct loops or fixpoints in a session type, and are shorthand for the notation µt.a. A simple loop that repeatedly does the session type a would be notated as µt.+{loop:a;t,end:end}, and implemented as `mu (choose $ fromList [("loop",a++ref 1),("end",end)])`.
+
+The `Integer` that `ref` takes is a [De Bruijn Index](https://en.wikipedia.org/wiki/De_Bruijn_index), so that µs.µt.s would be implemented as `mu (mu (ref 2))` and µs.µt.t would be implemented as `mu (mu (ref 1))`.
+
 ### isValid
 
-This function simply checks that a Session Type was constructed in a valid manner. It checks that any Maps are validly structured, and that no choices are empty or contain empty labels.
-
-This function must satisfy that if any SessionTypes contained in this one are invalid, then this one also is.
+This function simply checks that a Session Type was constructed in a valid manner. It checks that any Maps are validly structured, that no choices are empty or contain empty labels, and that all referenced indices are not out of bounds.
 
 ### isCompatible
 
-This function checks if two session types represent a valid communication. This requires that any peers will reach `Wait` and `Kill`, `Send` and `Recv`, or `Choose` and `Offer` at the same time, that the data sent over a `Send` will be the same type as the data received by a `Recv`, and that every `Choose` is a subset of the choices offered by an `Offer`.
+This function checks if two session types represent a valid communication. This requires that any peers will reach `send` and `recv`, or `choose` and `offer` at the same time, that the data sent over a `send` will be the same type as the data received by a `recv`, and that every `choose` is a subset of the choices offered by an `offer`, and that both protocols enter fixpoints at the same time.
 
 `<=>` is an infix operator for `isCompatible`.
 
@@ -62,13 +68,17 @@ This function is reflexive, antisymmetric, and transitive, so `a <: a` always, i
 
 If this differs from other notions of subtyping for session types, that is because a session type here is the type of an interface that an automaton presents, and so being compatible with a session type implies being compatible with its subtypes. The usual perspective is that a session type is the type of a channel, so being able to communicate using a type of channel implies being able to communicate any subtype. The result of this is that subtyping is flipped from usual, but this perspective is more inutitive for this application.
 
+To check µs.a <: µt.b, we assume s<:t and see if that allows us to deduce a<:b.
+
 ### dual
 
-The dual of a Session Type is the most obvious Session Type that it could communicate. It is found by swapping all `Wait`s and `Kill`s, `Send`s and `Recv`s, and `Choose` and `Offer`s.
+The dual of a Session Type is the most obvious Session Type that it could communicate. It is found by swapping all `send`s and `recv`s, and `choose` and `offer`s.
 
 This function is self-inverse, bijective, and satisfies `isCompatible`, so `dual (dual a) == a` always, `dual a == dual b` iff `a == b`, and `dual a <=> a` always.
 
 Duality inverts subtyping, so if `a <: b`, then `dual b <: dual a`. Also, the dual of a Session Type is the most specific Session Type it is compatible with, so if `a <=> b` then `dual a <: b`.
+
+<!--
 
 ### union, strictUnion and smartUnion
 
@@ -96,12 +106,8 @@ This function represents a combinator that looks at all of the messages, includi
 
 This function uses the builtin `Offer` constructor to union multiple session types. It has no nice properties.
 
-#### recurse
-
-Use: `recurse $ \x -> Offer (fromList [("continue",x),("end",Kill)])`.
-
-Shorthand for mu notation.
+-->
 
 ## Spec.hs
 
-This file includes instances of `Arbitrary` for both `Type` and `SessionType`, and then a variety of tests of some examples and properties of the functions.
+This file includes instances of `Arbitrary` for `Type` and a series of generators for `SessionType`, and then a variety of tests of some examples and properties of session types.
