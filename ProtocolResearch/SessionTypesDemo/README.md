@@ -38,7 +38,7 @@ Neither `Offer` nor `Choose` can have an empty set of options, and no label may 
 
 #### Concatenation
 
-`join` is a synonym for `(++)`, since session types are internally lists. Hence, for any session types `a` and `b`, `a++b == join a b`.
+`join` is a synonym for `(++)`, since session types are internally lists. Hence, for any session types `a` and `b`, `a++b == join a b`. This is commonly notated as a;b.
 
 #### Fixpoints or Loops
 
@@ -60,9 +60,9 @@ This function must be symmetric and reflexive, so `a <=> a` always, and `a <=> b
 
 ### isSubType
 
-Subtypes in Session Types is based on the requirement that the subtypes of any compatible pair of Session Types should also be compatible.
+Subtypes in Session Types is based on the requirement that the subtypes of any compatible pair of Session Types should also be compatible. `isSubType` takes two session types and determines if the first is a subtype of the second.
 
-`isSubType a b` or `a <: b` is `True` iff `a` is a subtype of `b`.
+`<:` is an infix operator for `isSubType`.
 
 This function is reflexive, antisymmetric, and transitive, so `a <: a` always, if `a /= b` and `a <: b` then `b <: a == False`, and if `a <: b` and `b <: c` then `a <: c`. The core requirement of subtypes with relation to compatibility is if `a <: b` and `c <: d` and `b <=> d` then `a <=> c`.
 
