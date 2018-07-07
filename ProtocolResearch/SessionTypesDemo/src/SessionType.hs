@@ -120,7 +120,7 @@ infix 8 <:
 
 -- Checks two lists are the same size, then zips and checks all yield true
 checkLists :: (a -> b -> Bool) -> [a] -> [b] -> Bool
-checkLists f x y = (length x == length y) && all id (zipWith f x y)
+checkLists f x y = (length x == length y) && and (zipWith f x y)
 
 -- Determines if the first is a subtype of the second
 isSubTypeSimple :: SimpleSession -> SimpleSession -> Bool

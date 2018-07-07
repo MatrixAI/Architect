@@ -9,6 +9,9 @@ import Data.Map.Strict (Map)
 import Data.Maybe (isJust, isNothing)
 import Control.Applicative (liftA2)
 
+-- Uncollapsed lambdas are used to make code readable
+{-# ANN module "HLint: ignore Collapse lambdas" #-}
+
 instance Arbitrary Type where
     arbitrary = QC.elements [INT, STRING, BOOL]
 
@@ -39,7 +42,7 @@ sizedRefSession maxref size = QC.oneof
         firstSize <- QC.choose (1,size-1)
         first <- sizedRefSession maxref firstSize
         second <- sizedRefSession maxref (size-firstSize)
-        return $ join first second
+        return $ first ++ second
     , choose <$> sizedRefMap maxref (size-1)
     , offer <$> sizedRefMap maxref (size-1)
     , mu <$> sizedRefSession (maxref+1) (size-1)
@@ -88,8 +91,8 @@ main = hspec $ do
             end `shouldSatisfy` isValid
             send INT `shouldSatisfy` isValid
             recv STRING `shouldSatisfy` isValid
-            (choose $ Map.singleton "a" end) `shouldSatisfy` isValid
-            (offer $ Map.singleton "get" end) `shouldSatisfy` isValid
+            choose (Map.singleton "a" end) `shouldSatisfy` isValid
+            offer (Map.singleton "get" end) `shouldSatisfy` isValid
             mu end `shouldSatisfy` isValid
             mu (send BOOL `join` ref 1) `shouldSatisfy` isValid
 
@@ -97,7 +100,7 @@ main = hspec $ do
             choose Map.empty `shouldNotSatisfy` isValid
 
             -- Options must have a name
-            (offer $ Map.singleton "" end) `shouldNotSatisfy` isValid
+            offer (Map.singleton "" end) `shouldNotSatisfy` isValid
 
             -- References should be in bounds
             ref 1 `shouldNotSatisfy` isValid
@@ -134,28 +137,28 @@ main = hspec $ do
             recv INT `shouldSatisfy` (<: recv INT)
 
             -- Choosing from fewer options is more general
-            (choose $ Map.singleton "b" end) `shouldSatisfy`
+            choose (Map.singleton "b" end) `shouldSatisfy`
                 (<: choose (Map.fromList [("a",end),("b",end)]))
 
             -- Offering more options is more general
-            (offer $ Map.fromList [("get",end),("post",end)]) `shouldSatisfy`
+            offer (Map.fromList [("get",end),("post",end)]) `shouldSatisfy`
                 (<: offer (Map.singleton "post" end))
 
             -- Choosing from more options is not more general
-            (choose $ Map.fromList [("a",end),("b",end)]) `shouldNotSatisfy`
+            choose (Map.fromList [("a",end),("b",end)]) `shouldNotSatisfy`
                 (<: choose (Map.singleton "a" end))
 
             -- Offering fewer options is not more general
-            (offer $ Map.singleton "get" end) `shouldNotSatisfy`
+            offer (Map.singleton "get" end) `shouldNotSatisfy`
                 (<: offer (Map.fromList [("get",end),("post",end)]))
 
             -- Checking that nesting Offer inside Choose works as expected
-            (choose $ Map.singleton "a" (offer $ Map.fromList [("c",end),
+            choose (Map.singleton "a" (offer $ Map.fromList [("c",end),
                 ("d",end)])) `shouldSatisfy` (<: choose (Map.fromList
                     [("a",offer $ Map.singleton "c" end),("b",end)]))
 
             -- Checking that nesting Choose inside Offer works as expected
-            (offer $ Map.fromList [("a",choose $ Map.singleton "c" end),
+            offer (Map.fromList [("a",choose $ Map.singleton "c" end),
                 ("b",end)]) `shouldSatisfy` (<: offer (Map.singleton "a"
                 (choose $ Map.fromList [("c",end), ("d",end)])))
 
@@ -165,9 +168,15 @@ main = hspec $ do
             send STRING `shouldNotSatisfy` (<: (send STRING `join` recv INT))
             recv INT `shouldNotSatisfy` (<: (send STRING `join` recv INT))
 
-            -- TODO: include basic loop example
-
-        -- Relation properties
+            -- Checking that nesting inside Mu works as expected
+            mu (choose $ Map.fromList [("a", send INT `join` ref 1),
+                ("b", end)]) `shouldSatisfy` (<: mu (choose $ Map.fromList
+                [("a", send INT `join` ref 1),("b", end),
+                ("c",send BOOL `join` ref 1)]))
+            mu (offer $ Map.fromList [("a", send INT `join` ref 1),
+                ("b", end),("c",send BOOL `join` ref 1)]) `shouldSatisfy`
+                (<: mu (offer $ Map.fromList [("a", send INT `join` ref 1),
+                ("b", end)]))
 
         it "is reflexive" $
             forAll validSession $ \a ->
@@ -199,13 +208,13 @@ main = hspec $ do
             forAll validSession $ \a ->
             forAll validSession $ \b ->
                 \s -> (a <: b) ===
-                (choose $ Map.singleton s a) <: (choose $ Map.singleton s b)
+                choose (Map.singleton s a) <: choose (Map.singleton s b)
 
         it "determines subtype inside an Offer" $
             forAll validSession $ \a ->
             forAll validSession $ \b ->
                 \s -> (a <: b) ===
-                (offer $ Map.singleton s a) <: (offer $ Map.singleton s b)
+                offer (Map.singleton s a) <: offer (Map.singleton s b)
 
         it "determines subtype inside a Mu" $
             forAll validSession $ \a ->
@@ -223,9 +232,9 @@ main = hspec $ do
             dual (send STRING) `shouldBe` recv STRING
             dual (recv BOOL) `shouldBe` send BOOL
             dual (choose $ Map.singleton "post" (send INT)) `shouldBe`
-                (offer $ Map.singleton "post" (recv INT))
+                offer (Map.singleton "post" (recv INT))
             dual (offer $ Map.singleton "get" (recv BOOL)) `shouldBe`
-                (choose $ Map.singleton "get" (send BOOL))
+                choose (Map.singleton "get" (send BOOL))
 
         it "is its own inverse" $
             forAll validSession $ \a ->
@@ -266,10 +275,10 @@ main = hspec $ do
             send BOOL `shouldSatisfy` (<=> recv BOOL)
             recv INT `shouldSatisfy` (<=> send INT)
 
-            (choose $ Map.singleton "a" end) `shouldSatisfy`
+            choose (Map.singleton "a" end) `shouldSatisfy`
                 (<=> offer (Map.fromList [("a",end),("b",end)]))
 
-            (offer $ Map.singleton "a" end) `shouldNotSatisfy`
+            offer (Map.singleton "a" end) `shouldNotSatisfy`
                 (<=> choose (Map.fromList [("a",end),("b",end)]))
 
         it "is symmetric" $
