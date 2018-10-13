@@ -78,6 +78,8 @@ Not all dependencies are build dependencies, nor runtime dependencies. Some are 
 
 Enough research, you need to build the dev environment that allows rapid linking between different projects when you're deving, and allows fixing the links with more constraints later. Better would be typed constraints, but absent these type constraints between the module boundaries means you rely on more information collapsed constraints, like hashes, and then version constraints. But if you're just prototyping, we don't really want to fully specify the interface, but allow the interface to be discovered. Basically structure discovery stage (exploratory programming) vs building within an existing structure. The idea is to be able to seamlessly move between prototyping to production. Nix can help us get some of the way there, while also making use of as much sharing as possible.
 
+One thing that we do want to cleanly demo is to have a demo environment that demonstrates FFI between Haskell and various languages. Specifically C and Golang and also allows seamless development with nix-shell and the usage of the GHCi interpreter.
+
 Dynamic dispatch and polymorphism are thus part of the same thing! Polymorphism of module linking is important.
 
 A generalised tool to resolve names according to constraints from free form constraints to versioned constraints to content hash constraints. With the naming scheme coming in a decentralised manner so that directory structure doesn't matter, thus requiring something akin to network multicast service discovery. If that's not possible, then a centralised system that doesn't require specific project directories, requires something that maintains the truth or local package index, equivalent to a search indexing tool that scans the filesystem and places them into the index. A nix/store is capable of doing this, except you'll need to maintain a "OS" or workspace level package index, that can be essentially the user-profile. The user profile represents the workspace level package index.
@@ -476,3 +478,305 @@ Session types are then built on top of linear logic as well.
 Proof nets (geometry of interaction is one) is an alternative graphical rendering of sequent calculus. And it has some advantages, such as the ability to represent identities more easily.
 
 Linear type systems is an appliation of linear logic to type systems of programming languages. Programmatic versions are always constructive. But this also means that because it's not classical, it cannot implement certain parts of linear logic. Or nobody has figured it out yet. The constructive linear type theory used in the module system is just an application of that.
+
+---
+
+Previously I was reading about Linear Logic applied to modules. We need to continue with that especially with first class modules and linking behaviour of Architect language.
+
+The geometry of interaction is a graphical notation for linear logic.
+
+The geometry of interaction is a proof net.
+
+What's the relationship betwen linear combinatory algebra and linear logic?
+
+The GOI used as Module system is the "particle-style". Apparently there are other styles as well like Wave Style. I'm still not sure about this.
+
+Also system LK is apparently classical logic? LJ is a variant of Sequent Calculus that makes it intuitionistic or constructive.
+
+I didn't realise it until now, but the sequent turnstile is like the "equals" sign in linear algebra. When you swap terms over the `=` equation, you have to apply the `-` operation to it. Similarly if you swap formula between the turnstile `|-` you have to apply the `¬` negation operation to them. One is a linear algebra, another is logical algebra. In a way logic systems like LJ/LK are like extensions of propositonal logic which itself is really similar to boolean algebra.
+
+https://cs.stackexchange.com/a/45359 gives a good overview how a bunch of different logics are built on top of propositional logic. In effect propositional logic is one of the first programming languages!
+
+Demorgan laws show that expressing conjunction and disjunction can be purely done in terms of each other via negation.
+
+* The negation of a disjunction is the conjunction of the negations
+* THe negation of a conjunction is the disjunction of the negations
+
+This shows us a relationship between propositonal logic and set theory as well. As conjunction is related to set intersection, while disjunction is related to set union. So the complement/negation of union is the intersection of the complements. The complement/negation of an intersection is the union of the complements.
+
+However I don't see a relationship between demorgan's laws applied to linear algebra.
+
+Soundness means that if and only if every formula that can be proved is logically valid with respect to the semantics of the system.
+
+Completeness is if every formula having the property can be derived using that system. So completeness is with respect to a property if every formula in that system that has that property can be derived using the system.
+
+A variable that occurs inside a formula is called a free variable if it is not bounded by a quantifier. Basically quantifiers in logical systems introduce the concept of a "scope". A scope in programming languages is automatically provided you bound or parameterise a function. In Haskell function parameters are implicitly forall quantified. And if you use a variable inside a function that isn't part that function's parameters, then that variable is a free variable. The fact that haskell functions are automatically universally quantified means that that such a function shoul work on all instances of that type domain. Say a function takes an Int, thus all instances of that Int are valid here.
+
+Note that universal and existential quantification is applied to type formulas in Haskell.
+
+Sequent calculus rules has a "direction" in their inference lines. Sometimes the rules are going top to bottom (DOWN), that means going from theorems to axioms. And sometimes they are going bottom to top that means going from axioms to theorems (UP).
+
+Note that the entire proof tree may be written from theorem to axiom, OR from axiom to theorem. Make sure to note which direction the proof trees are written in (just check if the top has small judgements or the bottom has small judgements, the smaller judgements are usually the axioms). And then the rules also are applied in that manner.
+
+Let's continue with traced monoidal categories, geometry of interaction and eventually first class modules.
+
+Premonoidal categories are a generalisation of Moggi's computational model (Monads). Hughes developed arrows which are the equivalent programming abstraction.
+
+Some monads call for a kind of recursion operator on computations for which informally the recursion only takes place over the values. For example the Haskell prelude defines the internally implemented ST and IO monads for respectively potentially state-manipulating and input/output performing computations.
+
+```
+fixST :: (a -> ST a) -> ST a
+fixIO :: (a -> IO a) -> IO a
+```
+
+The `fixIO` is a `mfix` for `IO`. That is `fix :: (a -> a) -> a`. Which takes a function to itself. Remember anonymous recursion where you have to have an anonymous function take a parameter that is the parameter for itself. You expect `fix` to eventually pass the function parameter to itself. In such a case, that means the type of such a function is in fact `a -> a`, because it takes itself, and returns itself. It's a bit weird yea..
+
+Consider this function:
+
+```
+:t (\rec n -> if n <= 1 then 1 else n * rec (n-1))
+
+:: (Num p, Ord p) => (p -> p) -> p -> p
+```
+
+You can see that its first parameter is `p -> p`. after that gets taken, it's also `p -> p`.
+
+From `fix` point of view, then `(p -> p) -> p -> p` is the same as `a -> a`. Where `a` is `p -> p`.
+
+Then when you do `fix (f)` that gives you back `:: (Num p, Ord p) => p -> p`. Because it returns the `a`.
+
+So then `fixIO` takes a function which is an anonymous recursion. Such a function would take itself and return itself but wrapped in a monad. Essentially rather than a normal function, it's a monadic action that is anonymously recursive.
+
+The result is of course the right hand side, which is just a monadic action.
+
+What do you use `fixIO` on? Wait... the `a` part must be a function. To be anonymously recursive, the whole thing must be a function.
+
+```
+:t (\rec n -> if n <= 1 then return 1 else return $ n * rec (n-1))
+
+:: (a -> a) -> a -> m a
+```
+
+Wouldn't it be closer to `(a -> a) -> m (a -> a)`?
+
+```
+:t (\rec -> return (\n -> if n <= 1 then 1 else n * rec(n - 1)))
+```
+
+You can use `fixIO` on sucha function. But what is this actually?
+
+I don't really understand why this would be needed. Is it an IO context around the extraction of sucha function? The result is `IO (p -> p)`?
+
+The fix is defined here:
+
+```
+fix :: (a -> a) -> a
+fix f = let x = f x in x
+```
+
+The way this works is that laziness is used. Remember in Haskell expressions are not evaluated until they are demanded, essentially "deconstructed" via pattern matching. So here if `x` were to be strictly evaluated, it would never terminate, because `x` expands to `f x` and `x` gets expanded again... etc until `f (f (f (...)))`. Anyway because Haskell is lazy. This doesn't happen. What does happen is when `fix` is applied to an anonymously recursive function, the first parameter of the anonymous function is a thunk (`rec`) that if were to be expanded, would expand to `f x` where `f` is the same anonymous function and `x` is a thunk yet to be expanded. At this point the `rec` is applied to the `(n - 1)`, and if the inside that expression, the `rec` doesn't get expanded, and instead  1 is returned, then the call stack unwinds, and we get a terminating result.
+
+So a way to prevent infinite evaluation is simply that the function has a base condition. That base condition is the terminating branch. An alternative to such a reducing expression is the dual generating expression. Such an expression replaces pattern matching/switch conditions/if conditions (which you'll realise are the same) with instead a constructor. A constructor also preserves laziness. So you can create infinite lists with `[1..] = fix (\xs -> 1 : fmap (+ 1) xs)`.
+
+The reason to use fix is to avoid hardcoding the recursion into the system. Instead you can have units of recursive things, and where that recursion is binded to is instead flexible. So in the protocol spec, we can fix at various points to bind a parameter that refers to itself. And we make use of laziness to ensure that we don't get infinite expansion of the parameter until it's needed. And unlike the pattern matching condition, we are building up a structure, so we actually use constructors to preserve the laziness.
+
+So while that's a cool application of `fix`, actually we have something else too. Nix uses `fix` to simulate object oriented inheritance patterns. And check this out:
+
+```
+fix $ \(~(a, b, c)) -> ([1, c-5], head a + 2, b * 4)
+([1,7],3,12)
+```
+
+And check that out. We have a functional expression that when evaluated will refer to other values returned by the same function. Just like in Nix where a `rec` attribute set allows you to create attributes that refer to other attributes in the same set. Note however you have to be careful here, as it's definitely possible to produce infinite loops. Thankfully Nix actually detects most of these (it's not foolproof though). If we take a look at the type of:
+
+```
+:t \(~(a, b, c)) -> ([1, c-5], head a + 2, b * 4)
+```
+
+What we see is a function that takes a tuple and returns a tuple. This makes sense as the generation of such a tuple depends on the tuple itself. Thus a `rec` attribute set in Nix is also essentially syntax sugar for applying fix to a function that takes its own attribute set and returns the same attribute set. Fix applies it to itself, and you get back the result type which is just the attribute set.
+
+
+
+```
+data Tree a = Leaf a | Branch (Tree a) (Tree a) deriving (Show)
+
+let f :: Tree Int -> Int -> IO (Int,Tree Int)
+    f (Leaf n) m = do 
+      print n
+      return (n, Leaf m)
+    f (Branch t1 t2) m = do
+      (m1,r1) <- f t1 m
+      (m2,r2) <- f t2 m
+      return (min m1 m2, Branch r1 r2)
+  
+t =  Branch (Leaf 1) (Leaf 2)
+
+f t 0
+
+-- this prints out 1 and 2
+-- and returns the minimum tuple (1, Branch (Leaf 0) (Leaf 0))
+```
+
+You can see that the function basically prints things, but returns the `n` inside the leaf and replaces it with m. Basically this function replaces the numbers in the node. That's also waht `f (Branch t1 t2) m` does. It applies that `m` down to both branches on the tree. But it then returns the minimum of both trees.
+
+Basically it's a weird function that replaces the leaf values, and also prints them while returning the minimum value.
+
+
+On Haskell the MonadFix class, the instance for IO defines:
+
+```
+mfix = fixIO
+```
+
+So the implementation of monad fix is simply the `fixIO`, and `fixIO` is just a more specific version of the generic `mfix`.
+
+The implementation is:
+
+```
+fixIO :: (a -> IO a) -> IO a
+fixIO k = do
+  m <- newEmptyMVar
+  ans <- unsafeDupableInterleaveIO
+    (readMVar m `catch` \BlockedIndefiniteOnMvar -> throwIO FixIOException)
+  result <- k ans
+  putMVar m result
+  return result
+```
+
+The function first creates a mutable variable. It's a mutable location that is either empty or contains a value of type `t`. The `purMVar` which fills an `MVar` if it is emtpy, and blocks otherwise. The `takeMVar` which empties the `Mvar` if it is full and blocks otherwise. Here we can see creation of it `newEmptyMVar`. But later we use `readMVar` not `takeMVar`. And then it will apply the `k` to the value, while extracting the result, thus unwrapping the IO monad, and putting the result into the `mVar`, and returning the result. Which itself is another `IO a`. The `readMVar` will atomically read the contents of an `MVar`, if the `MVar` is empty, the `readMVar` will wait until it is full.
+
+IT appears that `unsafeDupableInterleaveIO :: IO a -> IO a` will allow the IO computation to be deferred lazily. That is when passed a value of `IO a`, the IO will only be performed when the `a` is pattern matched!? The `Dupable` part is what allows the computation to be performed multiple times by different threads possibly at the same time. Apparently that exception can happen due to a deadlock. Basically if every thread that contains a reference to the MVar is trying to read or write to that location has died or is waiting on another primitive that is blocked forever.
+
+See if if you use `readMVar` or `takeMVar`, that would block, since there's nothing put int othe MVar at this point, the Mvar is just still empty. However by using `unsafeInterleaveIO` we essentially make the IO operation LAZY on the basis of the value itself. It's almost like defer operation in Golang, because we don't even bother evaluating them until we need to.
+
+Wait a minute, is this like a promise? Because it then calls the `k` with the answer from the future, and as long as it's not pattern matched, it won't execute the `takeMVar` (unless it does, in which case IT must terminate). And we also get a result monad. It's like a promise of a promise!?
+
+Both promises and lazy thunks are proxies. Proxies is the key word here.
+
+So this basically is intended to work with lazy cyclic structures. If the `k` attempts to evaluate the thunk given, then it will create an infinite loop. Say for example that you nee to use a thunk to an IO action so it can do some IO and create a data structure with that thunk placed somewhere inside, but you know that it doesn't actually need to force that thunk.
+
+So you can have a cyclic structure that makes use of an IORef and thus is also within the IO context.
+
+```
+data Node = Node Int (IORef Node)
+mknode = mfix $ \p -> do
+  p' <- newIORef (Node 0 p)
+  putStrLn "node created"
+  return p'
+```
+
+The compelling example is Reflex. So you can have widgets defined in a certain order but their logic in the opposite order.
+
+So we basically rely on lazy evaluation representing proxies for some value to avoid needing to an explicit cyclic pointer which is impure.
+
+Adding MonadFix is basically allowing you to create cyclic monadic structures that don't just reduce, but refer to themselves.
+
+So mfix has a syntax extension called `RecursiveDo`. This allows you to use `mfix` more easily.
+
+So instead of `do`, you use `mdo`. And you get the ability to reference values that is extracted later when using the monadic syntax. Ok wow. In a way `mfix` is like value recursion. You can build cyclic data in monadic code. Rather than just cyclic data in `fix`.
+
+I wonder if this has importance to our protocol spec, which depends on whether the protocol spec is in a monad as well?
+
+```
+import Control.Monad.Fix
+import Data.IORef
+
+-- here we have cyclic algebraic data type using IORef (as pointer)
+data Node = Node Int (IORef Node)
+
+-- here we have the smart constructor for the cyclic algebraic datatype
+mknode = mfix (\p -> do
+    p' <- newIORef (Node 0 p)
+    putStrLn "node created"
+    return p')
+```
+
+Note that recursive data structures fundamentally "productively infinite", but cyclic data structures are bounded infinite. They are not growing, but simply referring back to itself. If you can capture the cyclicness in an expression then a recursive productive is fine, as you can continue to evaluate the expression. So the idea of `f = 1:f` which uses the function to allow you perform it cyclically. Laziness is the alternative way, and laziness combined with fix is how it works.
+
+It appears that a traced monoidal category is introduced to interpret recursion in programming languages. The relationship between traces and fixpoints have attracted much attention in recent years. See Hasegawa's thesis.
+
+A trace on a symmetric monoidal category `(M,*,I,l,p,a,s)`.
+
+Monoidal categories provide a formal basis for reasoning about many of the graphical boxes and wires notations used in computer science. A traced monoidal category provides a formbal basis for circuit like notations involving feedback or cycles.
+
+There is a family of functions with the type:
+
+```
+trace :: M(A * U, B * U) -> M(A, B)
+```
+
+In a monoidal category, the associative binary operation is sometimes referred to as the "tensor product" or at least they use the tensor operation.
+
+Set is a cartesian monoidal category, the singleton set serves as the unit.
+
+There are "monoidal categories", and a "cartesian monoidal category" is where the monoidal product is the categorical product. A categorical product is basically in category theory where you have an object and a pair of morphisms leading to X1 and X2. Then there is a unique morphsim to `f: Y -> X1 * X2`.
+
+It makes sense that monoidal categories capture the notion of boxes and wires, because a monoidal category is a category equipped with a bifunctor: `* : C,C -> C`. This basically allows you to map some object in the category and another object in the category to another object in the category.
+
+Ok...
+
+A monoidal category has the bifunctor `*`. It seems to imply that his works as a binary operator. There's a identity object `I`. There are 3 natural isomorphisms. A natural isomorphism is related to natural transformation. A natural transformation is morphism betwen functors. Then a natural isomorphism is a isomorphic morphism between functors. The 3 are alpha, lambda and rho. The alpha expresses associativity. So a natural isomorphism is just a natural transformation that is also isomorphic. The lambda expresses left unitor and the rho expresses right unitor.
+
+```
+alpha: (A * B) * C <-> A * (B * C)
+lambda: I * A <-> A
+rho: A * I <-> A
+```
+
+Ok now it makes sense what the trace is.
+
+```
+trace: M(A * U, B * U) -> M(A,B)
+```
+
+What is `U` and what is `M`. I thought that `M` would be a category. What does it mean to have `M(...)`?
+
+---
+
+Hom-set is a homomorphic set (that is the set of structure preserving morphisms between objects A and B in C) denoted by `C(A,B)` or `Hom(A,B)` or `Hom-Set(A,B)`.
+
+There could be multiple morphisms between the same objects in a category.
+
+A and B and U are all objects of the category `M`.
+
+A trace is like a polymorphic function with 3 type parameters. Because whenever category theory talks about a hom-set. Where hom-set represents multiple different morphisms. Then the way you represent that in Haskell is via a "polymorphic" function. Since that function represents a family of functions that can be specialised later. Interesting that generic functions represents a family of morphisms.
+
+So then `trace` takes a family of morphisms between `A*U` to `B*U` and gives back a family of morphisms between `A` to `B`. Oh that's interesting. Then that would mean trace works on functions in Haskell. A polymorphic function that works on functions, then it's a higher order combinator.
+
+The `U` that is being removed can be through of as the internal state of the state machine.
+
+So if we get back `A -> B` as the result of the trace. And it's a "recursive" function. It can be decomposed as 4 non-recursive functions:
+
+* `A -> B`
+* `A -> U`
+* `U -> U`
+* `U -> B`
+
+Only 1 access any particular input. An A either produces a U meaning there's more recursive work to do, or didn't need to recurse so it gives back B. So B is the base case, but U represents the recursion instead.
+
+```
+A--base-->B
+|         ^
+|         |
+v         |
+U---|-----+
+^   |
+|   | recurse/inductive
++---+
+```
+
+Basically any recursion can be considered as a state machine. Ah I see, that's cool.
+
+Using the above structure, you can implement recursive algorithms in the internal language of a traced monoidal category. So you can construct recursive functions by composing together with `trace`. That seems so much like using `fix`.
+
+However you cannot take a recursive program and computationally deconstruct it to the 4 functions there. The 4 transitions between the 3 states `A`, `B` and `U`. That will require solving the halting problem.
+
+Both flow diagrams from basic imperative programming and fixed points in functional programming fits into the view of recursion in terms of traces.
+
+Oh... LR(0) parsers are still pushdown stack automatons. In fact many context free parsing algorithms are just pushdown automatons. Ohh... while regular languages can be parsed with a finite automaton. Context free languages need a pushdown automaton. Then within that class, we have many algorithms like LR and Earley parsers. Non-deterministic pushdown automatons are the most powerful in that it can parse every context free grammar. Wait... a language can be expressed via a grammar. A grammar can be "parsed" or turned into a machine. Context free grammars can be turned into a machine that parses a context free language. In a way the grammar expresses the "transition" rules almost.
+
+Different context free grammars can generate the same context free language.
+
+I wonder then, why are protocol specs/session types not regular? In what way are they a "context free grammar"?
+
+C is context senstive language, its parser cannot be a pushdown automaton. Instead it has to be at least linear bounded pushdown automaton. C++ is turing complete requiring a turing complete parser. That means its language is considered recursively enumerable and has an "unrestricted grammar". Interesting! This is due to the template metaprogramming allowing computations at compile time. So the parser/interpreter needs to be turing complete as well. The compilation process may not terminate! I think Haskell is similar.
