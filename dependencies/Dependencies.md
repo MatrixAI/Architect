@@ -779,4 +779,80 @@ Different context free grammars can generate the same context free language.
 
 I wonder then, why are protocol specs/session types not regular? In what way are they a "context free grammar"?
 
-C is context senstive language, its parser cannot be a pushdown automaton. Instead it has to be at least linear bounded pushdown automaton. C++ is turing complete requiring a turing complete parser. That means its language is considered recursively enumerable and has an "unrestricted grammar". Interesting! This is due to the template metaprogramming allowing computations at compile time. So the parser/interpreter needs to be turing complete as well. The compilation process may not terminate! I think Haskell is similar.
+C is context sensitive language, its parser cannot be a pushdown automaton. Instead it has to be at least linear bounded pushdown automaton. C++ is turing complete requiring a turing complete parser. That means its language is considered recursively enumerable and has an "unrestricted grammar". Interesting! This is due to the template metaprogramming allowing computations at compile time. So the parser/interpreter needs to be turing complete as well. The compilation process may not terminate! I think Haskell is similar.
+
+I'm still pretty unsure about the "Free" means.
+
+You are an element of a monoid. Say x, you want to strike out on your own, you want to act on another element y and be a unique individual. Not conforming to the laws to monoid society. But alas that says `xy = e` holds. So when you act on `y`, you can't express yourself uniquely. You are the only the identity element `e`.
+
+So that is not a free monoid. A monoid is free, is if there are NO relations, no equations that relate the elements together OTHER than the AXIOMs that all monoids must obey. If there are extra relations, then the elements of the monoid must also obey additional constraints, and you can interpret thm as being a loss of freedom.
+
+So a free thing is the "minimal thing", a thing that which is a monoid and ONLY a monoid, and not a monoid and something else.
+
+Thus a monoidal category is one that is equipped with a tensor productfunctor. And an identity object. Thus it's a monoid up to isomorphism.
+
+Oh and then the monoid laws are natural isomorphisms (transformations). Because...
+
+```
+associativity: (U*V)*W -> U*(V*W)
+```
+
+Note that the associative binary operation of a monoid becomes a tensor product functor. Well actually it's a bifunctor! It is a functor as an operation that operates over the monoid set, then these things are operating over objects in the monoidal category. They are mapping objects to objects. However they are not a morphism... because they don't map 1 object in the monoidal category to another object in the monoidal category.
+
+I get it now. The tensor product is infix operator. But as a "constructor" or prefix notation would make sense as a "functor". Anyway because the laws operate on the operation itself, it's a "morphism" between functors. And thus a natural transformation.
+
+I now get what a monoidal category is... lol.
+
+Now a symmetric monoidal category is...
+
+```
+U * V -> V * U
+```
+
+Ah so that's commutativity. And that's a symmetric monoidal category. A symmetric monoid is a commutative monoid!?
+
+I've done this before. Symmetric monoidal categories there are covariant functors, contravariant functors, bifunctor (covariant on both), and profunctor. That was 27/09. But I have no notes on this.
+
+You are fmapping and contramapping the IA trainer such that it works against results that are in S3 and the results are put back into S3. But using step functions is really poor orchestration tool. Right Functor is covariant, some functors on `a ->` is contravariant. Bifunctor is covariant in both. Profunctor is a function where contra in the front and co in the end.
+
+Since you have to specify instance like: `(,) a` is a functor. So could you do `-> a`? No because that's a covariant functor. `(->) a` still is missing the result type. So why is it `(->) r`. It should be `(->) i` To mean input! LOL.
+
+Well to make a contrafunctor, you cannot do it, since you have to supply it with something opposite. You would have to reverse it. Like `-> o` not `(->) i`, and try to do section of infix type operator. But I don't think it exists! 
+
+```
+newtype F o i = i -> o
+
+instance Contravariant F i where
+  ...
+```
+
+THen that would work.
+
+There's already one in Haskell in Data.Functor.Contravariant. And that's `Op`. It's new type with the types reversed!
+
+Wow category is now a basic type class.
+
+Ok so we're back now.
+
+OMG... haskell functors and ocaml functors are related.
+
+Becuase in Haskell functors type level functors represented as constructors and grouped together by a similar interface implemented via a typeclass. The typeclass designates what "type constructors/types" are functors and what are not. Hence everything identified a functor has the fmap function available to it.
+
+In Ocaml a functor a parameterised module, or a parameterised structure. Similarly every parameterised structure/module in Ocaml is ALSO a functor in the categorical sense. Every module exposes the ability map over it. If you are a parameterised structure, your structure has a whole that which can be filled by some dependent type. Thus `Maybe` and `[]` are structures that can be parameterised by something that will fill inside of it. Thus Ocaml would implement Maybe functors a functor module instead of a type class. But you get roughly the same thing, in the sense that they will share the same interface. Well at least if they expose the mapping function right?
+
+* https://stackoverflow.com/questions/16353066/how-are-functors-in-haskell-and-ocaml-similar
+* https://cs.stackexchange.com/questions/9769/what-is-the-relation-between-functors-in-sml-and-category-theory
+
+Are you saying functors in haskell are a particular class of functions that act on types. Whereas all parameterised modules in Ocaml are functors.
+
+Yea you can even write a Monad as module in Ocaml. And anything you parameterise ends up being the monad. So it's an open thing as well. OCamls modules are open like Monads. They are parmeterised structures that parameterise around something that you think is a monad. But the fact that they call it a functor is weird.
+
+In Ocaml, the "haskell functor" would be implemented as a module signature. A "kind". A signature that a module satisfies.
+
+Eh... I don't think OCaml functors are functors literally. The best way is to just understand ocaml functors as just higher level functions. Modules becomes units of things to be operated on functors, and signatures being types of the modules.
+
+I think the answer was that functors in haskell are like "functions" in the sense of a type constructor style mapping. And functors in ocaml are "functions" in the sense that they work on modules. In that they are both "functors", then they are like mappings. The analogy falls apart anyway.
+
+After we have a commutative monoid. If we add in the trace operation, then we have the traced symmetric monoidal category. Or a traced monoidal category.
+
+I started this with trying to figure out a model of higher order composition.
