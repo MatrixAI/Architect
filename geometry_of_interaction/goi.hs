@@ -343,3 +343,45 @@ gid = G sym
 -- and if I am receiving B, then I am sending out B
 -- but why is this flipped?
 
+-- I'm not sure why the decided to implement the morphisms of (A+, A-) -> (B+, B-)
+-- as resumptions of
+-- (A+ + B-) -> (A- + B+)
+-- I just don't understand why it is flipped right now
+
+-- ok to implement composition
+-- we are doing f . g
+-- where f :: (A+, A-) -> (B+, B-)
+-- g :: (B+, B-) -> (C+, C-)
+-- but remember we are doing it as resumptions
+
+-- here it is inresumptions
+-- f :: (A+ + B-) -> (A- + B+)
+-- g :: (B+ + C-) -> (B-, C+)
+
+-- we feed f's B+ to g's B+
+-- and g's B- to f's B-
+-- so we use the trace operator
+-- it's like the `B` here is the recursion?
+
+{--
+ let rec assoc :
+((
+  ('aplus,'cminus) sum,
+  ('bminus,'bplus) sum
+) sum,
+(
+  ('aplus, 'bminus) sum,
+  ('bplus, 'cminus) sum
+) sum)
+r
+
+--}
+
+assoc :: ((a :+ c') :+ (b' :+ b)) :-> ((a :+ b') :+ (b :+ c'))
+assoc = R $ \case
+  Left  (Left  a ) -> (Left (Left a), assoc)
+  Left  (Right c') -> (Right (Right c'), assoc)
+  Right (Left  b') -> (Left (Right b'), assoc)
+  Right (Right b ) -> (Right (Left b), assoc)
+
+
