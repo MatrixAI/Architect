@@ -856,3 +856,148 @@ I think the answer was that functors in haskell are like "functions" in the sens
 After we have a commutative monoid. If we add in the trace operation, then we have the traced symmetric monoidal category. Or a traced monoidal category.
 
 I started this with trying to figure out a model of higher order composition of dependencies and programs. This got me into higher order modules or module systems. Of a particular treatment is GoI geometry of interaction. Since it was developed from linear logic. I had to go back and study linear logic and linear type theory. The whole thing was expressed in the sequent calculus formalism, so I had to find out more about the interaction between classical and intuitionistic logic denoted at LK and LJ. After that I went back to studying the higher order module system involving GoI, and this eventually reached theories about traced monoidal categories, which I had to do research on again leading me to ideas and theories and experiments involving the fix point combinator. Which lead me to revise the work on fix points in term level and fix points at the type level, the patterns of recursion schemes, and its generalisation of recursion and fixed point interpreters as folding over any kind of graph structure. After this, I was able to go back to the original formulations of category theory, going from trace monoidal categories to symmetric monoidal categories to monoidal categories to just categories. Revising what exactly functors are and bifunctors and covariat and contravariant functors and profunctors. This led to revising natural transformations and eventually natural isomorphisms, which were identified as monoid laws. The monoidal laws are natural transformations. The associatibe binary operation is a product bifunctor in a monoidal category! Symmetric monoidal cateogories are commutative monoids. Trace is then a generalisation of fix, feedback and recursion in the category theory sense. All of this appears to be needed to understand higher order modules.
+
+---
+
+I learned about quite alot of Cartesian Closed Catgories. And about exponential objects and closed categories. Basically closed categories are categories that have morphisms between objects also represented as objects. These objects are exponential objects and they are generalisations of function spaces between sets. There are functors called `curry` and `uncurry` that maps homorphic sets between product object to result object to the first object to exponential objects.
+
+```
+Hom(X*Y, Z) <-> Hom(X,Z^Y)
+```
+
+There is a eval morphism with the pattern `(Z^Y * Y) -> Z`. As we are applying the Y object to the exponential object `Z*Y`.
+
+So g is the morphism `(X*Y) -> Z`. Then `\g` where `\` is an endofunctor mapping the morphism to another morphism, this time `X -> Z^Y`. That functor is called "curry".
+
+There is a natural isomorphism between the curry and uncurry functors.
+
+There is an "internal language" and this is the logical model that the category is modelling. The internal language of cartesian closed categories is simply typed lambda calculus. The internal language of a monoidal closed category is a linear type systems. That's why there is this relationship between simply typed lambda calculus and closed monoidal categories and intuitionistic logic.
+
+There is a concept called the "internal-hom", this appears to be the idea that if an object captures the morphisms between other objects, then this is a "higher order concept" and this is an internal hom.
+
+In a closed cateogry, an external hom `(x, y)` maps a pair objects to a set of morphisms between those objects. While the internal hom is an object of morphisms.
+
+So basically external hom, means the homset is external to the category, they are part of the category.
+
+Say a hom-set in the category of sets is itself a set and thus an object. Thus we call that an "internal hom set".
+
+Basically for some categories, the hom-set between two objects cannot itself be an object within that category, and thus these hom sets are external hom sets.
+
+I see... and so that's why the 2 interesting categories of closed cartesian categories and monoidal closed categories are closed, because they allow use to express higher order programs.
+
+Ok back to GoI.
+
+Lots of combinator libraries can be seen as DSLs with a natural notion of first order programs like AWS Step Functions.
+
+The G construction says that if you have a first order language with recursion and sequential and parallel composition, you get a higher order language.
+
+In  another way, you can construct a monoidal closed category (modelling a linear type system) from any symmetric monoidal category with a trace operator. So the associative binary operation gives you parallel composition, the arrows give you sequential composition, and trace gives you recursion.
+
+Ok first we need some ocaml primitives. So we can have `$` as application operator. Then we need a Sum, which is the same as the `Either` type.
+
+We have a `either` function. That's what `case` means for `sum`.
+
+There's also `sum f g`. Which means...? You apply `Left` to the `f`, then apply `Right` to g. So that's a constructor. The `sum` is a constructor of both?
+
+```
+$ f g x = f (g x)
+
+$ f g => \x -> f (g x)
+
+That means $ is .
+
+f . g
+
+Assumes that g is applied.
+
+f (g x) === (f.g) (x)
+```
+
+Oh yea the `.` is composition.
+
+Then:
+
+```
+sum :: (a -> b) -> (c -> d) -> Either a c -> Either b d
+sum f g = either (Left . f) (Right . g)
+```
+
+Oh so that's different from `either`
+
+```
+either :: (a -> c) -> (b -> c) -> Either a b -> c
+```
+
+Since that basically preserves the `either`.
+
+You cannot use a functor on this. This is a bifunctor!
+
+So it's bimap.
+
+Ok `$` is `.`. The `case` is `either`. And `sum` is `bimap`.
+
+```
+let swap v = either Left Right v
+```
+
+Ok so you can swap the `either` type as well
+
+Oh the `swap` is sometimes called `flipEither`.
+
+There is a `Swap` typeclass for haskell that nobody has written it.
+
+Oh in category theory this is somewhat related to `braid`.
+
+Related to symmetric class or braided category.
+
+Anyway...
+
+Then we have `zero` which Void constructor.
+
+And we also have `abort` which if given `Void v` it runs `abort v`.
+
+Not sure what that means.
+
+One way to model stateful components is by means of resumptions.
+
+A resumption from I means read input to output O is essentially an elemnt of the solution to the domain equation:
+
+```
+R = I -> (O* R)
+```
+
+So the `R` then is what?
+
+This function takes an input and gives you an output AND a new resumption to use on the next input. Oh yea... this is is continuations with coroutines.
+
+It's like a state machine, but formulated in such a way that you don't have to give an explicit state set.
+
+```
+module Resumption = struct
+  type ('i, 'o) r = R of ('i -> 'o * ('i, 'o) r)
+```
+
+Note that it is a recursive type. And so we take input and return with output and a continuation to be executed later. Ok...
+
+Sure... it's just a continuation.
+
+There is an identity contiuation.
+
+```
+(* val id : ('a, 'a) r *)
+let rec id = R(fun x -> (x, id))
+```
+
+Oh... it's just the same funciton, nothing changes.
+
+To compose 2 resumptions f and g, we feed input into f and takes f's output as input into g.
+
+I've realised there would be a big market for successfully integrating higher order programming into distributed workflows. This is what AWS Step Functions and things like Luigi are tackling. All the basic programming primitives is what people want like loops, conditionals, parameterisation. It's weird that we are surprised about basic programming concepts being used in programming in the large. We grow accepted to programming in the small having these, but not when we are programming in the large assuming that the large language is less powerful.
+
+Really the same language should be possible at the large and small. But the problem is always that programming in the large involves interacting with systems that are not your language. So there's a type boundary, network boundary and the presence of failure in everything. So even composing function is just not something that can assume will work. Whereas we have this compilation step that says that if the function composes, then it should work. But even then the program can terminate at any time. Thus this is really about state. Failures can be tolerated as long as state modification is atomic and is restartable.
+
+So in that case the Architect language should also support much more than just composing type safe services. It's not just a declaration language, but a proper language designed for workflows as well. So when we are connecting Automatons together, the very same concepts must be possible. 
+
+Really important is how our language needs to be P2Pable. Thus this will commodify the clouds. https://github.com/argoproj/argo
+
+Note that Hackage allows you search within a package `+bifunctors`.

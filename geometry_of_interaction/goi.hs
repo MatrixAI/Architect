@@ -1,4 +1,5 @@
-{-# LANGUAGE TypeOperators, LambdaCase #-}
+{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE TypeOperators #-}
 
 import           Data.Bifunctor
 import           Data.Either
@@ -377,11 +378,25 @@ r
 
 --}
 
+
+-- weirdly the c' goes to the far right here!!
+--              +-------+
+--              |       |
 assoc :: ((a :+ c') :+ (b' :+ b)) :-> ((a :+ b') :+ (b :+ c'))
 assoc = R $ \case
   Left  (Left  a ) -> (Left (Left a), assoc)
   Left  (Right c') -> (Right (Right c'), assoc)
   Right (Left  b') -> (Left (Right b'), assoc)
   Right (Right b ) -> (Right (Left b), assoc)
+
+--       +----------+
+--       |          |
+-- (A' + B) + (B' + C) -> (A' + C) + (B' + B)
+assoc2 :: ((a' :+ b) :+ (b' :+ c)) :-> ((a' :+ c) :+ (b' :+ b))
+assoc2 = R $ \case
+  Left  (Left  a') -> (Left (Left a'), assoc2)
+  Left  (Right b ) -> (Right (Right b), assoc2)
+  Right (Left  b') -> (Right (Left b'), assoc2)
+  Right (Right c ) -> (Left (Right c), assoc2)
 
 

@@ -793,3 +793,7 @@ stack ghci src/Architect/AST.hs
 ---
 
 So we have lambda and application, we need to parse into them.
+
+---
+
+I have changed 2 dependencies to be lower versions: 6.3 for the Megaparsec (of which there was some breaking changes between 6.3 and 6.4) and also deriving-compat from 0.4 down to 0.3.6. I'm not sure if there are breaking changes there either, but we may have to adapt. This is due to the new Nix hash that I'm using for GHC 8.2.2.
