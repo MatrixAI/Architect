@@ -2,17 +2,22 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 70d506aefb740e06db41bd234d9c68174b7730635ccb94bd4d2d4e898e063ba6
+-- hash: 916e399d7e88c7ea6a488574fdabc50d3a7d78fc846d7f60080fce9bce8c596b
 
 name:           architect-compiler
-version:        0.0.1
-category:       Compiler
+version:        0.1.0.0
+homepage:       https://github.com/MatrixAI/Haskell-Demo#readme
+bug-reports:    https://github.com/MatrixAI/Haskell-Demo/issues
 author:         CMCDragonkai
 maintainer:     roger.qiu@matrix.ai
-copyright:      (c) Matrix AI 2017
-license:        Apache-2.0
+copyright:      Copyright: (c) 2017 Matrix AI
+license:        Apache
 build-type:     Simple
 cabal-version:  >= 1.10
+
+source-repository head
+  type: git
+  location: https://github.com/MatrixAI/Haskell-Demo
 
 library
   exposed-modules:
@@ -22,6 +27,7 @@ library
       Architect.AST.Annotate
       Architect.Parser
       Architect.Parser.Syntax
+      Architect.Parser.Types
       Paths_architect_compiler
   hs-source-dirs:
       src
@@ -30,14 +36,14 @@ library
     , bytestring >=0.10 && <0.11
     , data-fix >=0.2 && <0.3
     , deepseq >=1.4 && <1.5
-    , deriving-compat >=0.4 && <0.5
+    , deriving-compat >=0.3.6 && <0.4
     , ghc >=7.8 && <8.4
     , ghc-boot
     , ghc-paths
     , hashable >=1.2 && <1.3
     , hashmap >=1.3 && <1.4
     , hint >=0.7 && <0.8
-    , megaparsec >=6.4 && <6.5
+    , megaparsec >=6.3 && <6.4
     , neat-interpolation >=0.3 && <0.4
     , scientific >=0.3 && <0.4
     , text >=1.2 && <1.3
