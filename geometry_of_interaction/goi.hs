@@ -23,7 +23,7 @@ import           Data.Void
 
 type a :+ b = Either a b
 
-swap :: Either a b -> Either b a
+swap :: a :+ b -> b :+ a
 swap = either Right Left
 
 
@@ -400,3 +400,10 @@ assoc2 = R $ \case
   Right (Right c ) -> (Left (Right c), assoc2)
 
 
+-- the c d is being joined together
+-- newtype G a b' a' b = G (R (Either a b') (Either a' b))
+-- a b c d is a b' a' b
+-- but there we don't care, it's really any type
+gcompose :: G a b c d -> G c d e f -> G a b e f
+-- gcompose (G f) (G g) = G (trace (assoc =>> (f <=> g) =>> assoc2))
+gcompose (G f) (G g) = G (trace (assoc =>> (f <=> g) =>> assoc2))
