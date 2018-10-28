@@ -385,9 +385,9 @@ r
 assoc :: ((a :+ c') :+ (b' :+ b)) :-> ((a :+ b') :+ (b :+ c'))
 assoc = R $ \case
   Left  (Left  a ) -> (Left (Left a), assoc)
-  Left  (Right c') -> (Right (Right c'), assoc)
-  Right (Left  b') -> (Left (Right b'), assoc)
-  Right (Right b ) -> (Right (Left b), assoc)
+  Left  (Right c') -> (Right (Right c'), assoc) -- swap to 4
+  Right (Left  b') -> (Left (Right b'), assoc) -- swap to 2
+  Right (Right b ) -> (Right (Left b), assoc) -- swap to 3
 
 --       +----------+
 --       |          |
@@ -395,15 +395,64 @@ assoc = R $ \case
 assoc2 :: ((a' :+ b) :+ (b' :+ c)) :-> ((a' :+ c) :+ (b' :+ b))
 assoc2 = R $ \case
   Left  (Left  a') -> (Left (Left a'), assoc2)
-  Left  (Right b ) -> (Right (Right b), assoc2)
+  Left  (Right b ) -> (Right (Right b), assoc2) -- swap to 4
   Right (Left  b') -> (Right (Left b'), assoc2)
-  Right (Right c ) -> (Left (Right c), assoc2)
+  Right (Right c ) -> (Left (Right c), assoc2) -- swap to 2
 
 
 -- the c d is being joined together
 -- newtype G a b' a' b = G (R (Either a b') (Either a' b))
 -- a b c d is a b' a' b
 -- but there we don't care, it's really any type
-gcompose :: G a b c d -> G c d e f -> G a b e f
+-- gcompose :: G a b c d -> G c d e f -> G a b e f
+-- -- gcompose (G f) (G g) = G (trace (assoc =>> (f <=> g) =>> assoc2))
 -- gcompose (G f) (G g) = G (trace (assoc =>> (f <=> g) =>> assoc2))
-gcompose (G f) (G g) = G (trace (assoc =>> (f <=> g) =>> assoc2))
+
+-- should compose 2 Gs
+-- gcompose
+
+-- tensor product should put together represents a monoidal product
+-- not that composition operator is also monoidal
+-- but this is a different kind of monoidal?
+-- it's like product in a different dimension, same with the idea of matrix product and matrix addition
+-- but are monoidal, but in different ways
+-- like * vs +
+-- note the usage of :+ and :-> for Resumptions
+-- but the usage of =>> and <=> for rCompose and rProduct
+-- r :: ((A+ + X+) + (B- + Y-)) -> ((A+ + B-) -> (X+ + Y-))
+-- weird it just swaps X and B together
+-- but B - becomes B+
+-- how is that possible!?
+-- it's just a typo
+-- anyway these associativity maps just seems like adhoc associtivity swaps
+-- why isn't this generalised to some extent
+-- it seeme like whenever
+-- anyway it takes a Resumption of 2 Eithers
+-- and swaps the data around in the Eithers
+-- we are just doing swaps around the iteration
+-- it's a deep swap, the Left Right becoms Right Left
+-- the Right left becomes Left Right
+-- the r and r' HAVE the same structure?
+-- unless we are quantifying over the types...
+-- wtf
+gproduct :: G a b c d -> G e f g h -> G (a :+ e) (b :+ f) (c :+ g) (d :+ h)
+gproduct (G f) (G g) = G (assoc =>> (f <=> g) =>> assoc)
+  where assoc = R $ \case
+          Left (Left a) -> (Left (Left a), assoc)
+          Left (Right x) -> (Right (Left  x), assoc)  -- swap to 3
+          Right (Left b') -> (Left (Right b'), assoc) -- swap to 2
+          Right (Right y') -> (Right (Right y'), assoc)
+
+-- you do not need the extra one
+-- we are just swapping shit!
+-- grrr
+
+-- the idea is that a G type represents bidirectional resumption
+-- where the resumption is Input type to Output type
+-- the G type allows an input output interface to an output input interface
+-- it is indeed quite weird
+
+-- higher order ness is the ability to apply the operators on "exponential objects"
+-- if hom set between 2 objects can be represented by an exponential object in the same category
+-- then we have a higher order system
+-- then we can use this for higher order module system
