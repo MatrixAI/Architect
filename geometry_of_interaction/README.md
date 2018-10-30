@@ -158,3 +158,96 @@ This is (asynchronous) parallel composition of transducers. Right this is just l
 At each stage, we can take an input from X wire according to f, and output on Y wire. And at the same time, we can take an input from X' wire according to g and output to Y' wire.
 
 This paper was first published in 1996.
+
+The objects in the G category are pairs of objects in C. The idea is that `A+` is the type of moves by player, while `A-` is the type of moves made by the opponent.
+
+A G morphism is encoded as a parallel composition of 2 R morphisms.
+
+See that:
+
+```
+(A+ + B-) -> (A- + B+) = f || g
+
+f : A+ -> A-
+g : B- -> B+
+```
+
+Why do we have the polarities swapped? Because a G object is meant to describe an interaction. Usually an interaction from the perspective of 1 process. A morphism mapping 1 interaction to another interaction turns out to need the simultaneous passing of data from. `A+` and `B-`.
+
+So basically G morphisms have both serial composition and parallel composition as well. And the parallel composition for a R morphism is basically the idea that both types can be transferred at the same time. "Asynchronous parellel composition of transducers at each stage we respond on the X wire according to f, with output appearing on the Y wire". Basically parallel composition just means both can happen at the same time, but this seems to be interpreted in programming as a function that process both kinds of data at the same time, making that function a bit more generic.
+
+The paper says that "interaction is modelled as composition in the category G". Interaction is then aligned with the computation as cut elimination paradigm. Remember that cut elimination is basically where you can remove transitive paths between the beginning and the end. Ah yes so serial composition is literally interaction between 2 processes! Oh... so then.. are we saying that serial composition between f and g morphisms in G is producing another interaction? But what is f and g then? They are morphisms between input/output types? And so a single morphism that maps from 1 input/output to another output/input is in fact an interaction. Oh I see now... the G morphism is the interaction. And then serial composition allows you to compose interactions! Oh that is cool.
+
+The `assoc` and `assoc2` is actually referring to:
+
+```
+assoc: A+ * C- * B- * B+ === A+ * B- * B+ * C-
+assoc2: A- * B+ * B- * C+ === A- * C+ * B- * B+
+```
+
+---
+
+The object of (X+,X-) being the input/output types of a process. Can also be thought of as a 2 person game. A resumption is then a strategy for a player. `f: X- -> X+`. This means we receive a message and send a message.
+
+A set of plays can be constructed from this: `P(f)`. Because remember a resumption takes input and returns output plus itself. You can then construct a set of plays. Passing an x, k times into the `f`. And you get `y` k times out of it. Thus you end up a set like : `{x1y1,...,xkyk}`. Which is a sequence of messages received and messages sent out. Basically the input and output log of a process.
+
+Composition of interactions in the G category is given by parallel composition plus hiding of the resumptions.
+
+```
+P(f;g)
+```
+
+Can we use `;` in our operators. Not in haskell, because it is special. We have to use `>>` and `<+>` and `<*>`. Wait we can reuse the monoidal typeclass and use the `<>` operator as well for the product operation. But we
+
+If `-> a` is a monoid. Then... Yea we could definitely use `<>` and define a monoid over it. But which one is the monoidal operator? The parallel composition is the monoidal structure.
+
+For this to work, we would need to define an instance for those morphisms. But both are bifunctors. Sequential composition of operators. Wait.. to be a bifunctor it has to map back to an object internally.
+
+Ah yes there is `Sum` and `Product` newtypes in `Data.Monoid`. So we could just define it for them and make use these wrappers when we want to do a serial composition vs a parallel composition. But this means we use `newtype` wrappers and define them be instances of `Monoid`. And then we unwrap them however we want. Oh we need to create our own newtype wrappers. I see.
+
+If we think of these things as functors, we could instead use the applicative instance. I think that should be possible as well. Instead of always using the same `<>` operators then. https://stackoverflow.com/questions/29499119/why-int-does-not-implement-monoid
+
+Ok anyway, the above models means that we can think of them as dynamic systems in which information is a token or particle that traces around a path in a network.
+
+In the above we just created a model for functions. But a type system based on this could be used for interface types as well.
+
+It is also possible to give an interpretation in which an information wave travels through the network. This is supported by a multplicative carteisan product interpretation of the tensor. Interesting ,the idea is that means we have a Cpo category of cpos and continuous functions. The category G(Cpo) and then a subcategory of this category consists of dataflow networks. Where the objects are domains of streams. This is interesting, I'm not sure where this leads to and what relevant it has to FRP.
+
+In continuous systems, the feedback is interpreted by solving a differential equation. There should be a traced monoidal category C of manifolds and smooth maps for which G(C) would give an infinitesimal model of interaction. This category may be relevant to the study of hybrid systems. I wonder what this has to do with compiling to categories?
+
+This now allows you model functions as processes. Function application is a particular form of process interaction as advocated by Robin Milner. now we have a highly structured syntax free and compositional.
+
+Ok I think I can try to reimplement these things in GoI in Haskell now.
+
+The point is that now higher order expressions (lambda terms) can be "compiled down" or intepreted as a lower order compositions of resumptions. Maybe that's what compiling to categories allows?
+
+Apparently the ability to update behaviour based on previous inputs means that we can have "memoryful" resumptions? And this allows effectful computaitons.
+
+---
+
+```
+-- this is the definition of a morphism
+-- but it's also a bifunctor
+-- because it can refer to a single typed object
+-- so you can create a bifunctor here
+-- and make a bifunctor applicative
+-- wait is this a bifunctor? It's actually possible to be profunctor
+-- it's a profunctor
+-- because we take an i and return an o
+-- it's a profucntor!
+-- dimap (c -> a) -> (b -> d) -> f a b -> f c d
+-- f a b is a morphism
+-- f c d is another morphism
+-- so this maps 1 morphism to another morphism
+
+-- category of resumptions allows you to model processes
+-- that can change as it sees input coming in
+-- this really resembles a state monad as well
+-- given that the state updates is itself a resumption
+-- in that sense, the state is used an input
+-- remember the state action signature is s -> (a, s)
+-- where s is the input and s gets updated, and we get output
+-- so this seems to generalise it
+```
+
+Note that `Resumption` is a profunctor. So we could apply things like dimap to it. But `dimap` does have to be careful. Since what we are doing is transforming the `Resumption` morphism by making changes to it. We gain access to `dimap`.
