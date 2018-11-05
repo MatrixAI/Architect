@@ -251,3 +251,5 @@ Apparently the ability to update behaviour based on previous inputs means that w
 ```
 
 Note that `Resumption` is a profunctor. So we could apply things like dimap to it. But `dimap` does have to be careful. Since what we are doing is transforming the `Resumption` morphism by making changes to it. We gain access to `dimap`.
+
+If you use `infix`.

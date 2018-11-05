@@ -12,8 +12,9 @@ type a :+: b = Either a b
 swap :: a :+: b -> b :+: a
 swap = either Right Left
 
-type i :->: o = Resumption i o
 newtype Resumption i o = Resumption (i -> (o, Resumption i o)) deriving (Show)
+infixl 5 :->:
+type i :->: o = Resumption i o
 
 -- sequential composition
 infixl 6 <->
@@ -94,4 +95,25 @@ trace f = Resumption $ \i -> loop f (Left i)
 -- vanishing I
 -- superposing
 
+-- an interface is just 2 types together
+-- one sending, one receiving
+-- an interaction is defined between 2 interfaces
+-- between 2 interfaces, if 1 is sending, the other receiving
+-- thus the encoding of an interaction is a resumption between
+-- the sending and receiving type of both processes to the receiving and sending tyep of both processes
 
+newtype Interaction a a' b b' = Interaction ((a :+: b') :->: (a' :+: b))
+
+idInteraction :: Interaction a a' a a'
+idInteraction = Interaction symmetric
+
+-- sequential interaction composition
+(<=>) :: Interaction a a' b b' -> Interaction b b' c c' -> Interaction a a' c c'
+(<=>) (Interaction f) (Interaction g) = undefined
+
+
+-- parallel interaction composition
+(<||>) :: Interaction a a' b b'
+       -> Interaction c c' d d'
+       -> Interaction (a :+: c) (a' :+: c') (b :+: d) (b' :+: d')
+(<||>) (Interaction f) (Interaction g) = undefined
