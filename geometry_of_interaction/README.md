@@ -271,3 +271,7 @@ Doing this sort of makes sense, since an Interaction is already encoded as a res
 An interaction is already a resumption between 2 eithers. And by embedding eithers into the interation types, we now have a higher order language as interactions can be embedded into interactions.
 
 Oh... interesting
+
+The lollipop operator is the linear exponential. And that can get defined as just a series of types in a particular structure that gets embedded into an interaction. The fact that it can be embedded in an interaction makes it interesting. The embedding itself produces a higher order language.
+
+A closed monoidal category has the right adjoint functor called curry (it is right adjoint to the right tensoring functor `*`), and IF you are able to construct this functor in your language/category, then this means you have a higher order language or a closed monoidal category. That's how you prove that you have what you need!
