@@ -32,8 +32,8 @@ infixl 7 <|>
   Right c -> let (d, g') = g c in (Right d, (Resumption f) <|> g')
 
 -- apply a resumption
-(<$$>) :: Resumption i r -> i -> (r, Resumption i r)
-(<$$>) (Resumption f) i = f i
+applyRes :: Resumption i r -> i -> (r, Resumption i r)
+applyRes (Resumption f) i = f i
 
 idResumption :: Resumption a a
 idResumption = Resumption $ \a -> (a, idResumption)
@@ -102,6 +102,16 @@ trace f = Resumption $ \i -> loop f (Left i)
 -- Interaction a a' b b' is a morphism (a, a') -> (b b') that is in G(C)
 -- but that is also a Resumption morphism in C itself
 newtype Interaction a a' b b' = Interaction (Resumption (a :+: b') (a' :+: b))
+
+applyInt
+  :: Interaction a a' b b' -> a :+: b' -> (a' :+: b, Interaction a a' b b')
+applyInt (Interaction f) i = let (o, f') = applyRes f i in (o, Interaction f')
+
+-- a proper interaction is more like
+-- Interaction a b b a
+-- what process left sends needs to be what process right receives
+-- but this interaction is not done
+
 
 idInteraction :: Interaction a a' a a'
 idInteraction = Interaction symmetric
@@ -172,42 +182,38 @@ the assoc1 and assoc2 is what allows
     Right (Left  c') -> (Left (Right c'), assoc2)
     Right (Right d ) -> (Right (Right d), assoc2)
 
--- we can dualise an interface
--- which means we can dualise an interaction
--- they are the same!
-dualise :: Interaction a a' b b' -> Interaction b' b a' a
-dualise (Interaction (Resumption f)) = Interaction (dual f)
- where
-  dual f = Resumption $ \i -> let (i', f') = f (swap i) in (swap i', dual f)
+dualRes :: Resumption (a :+: b) (c :+: d) -> Resumption (b :+: a) (d :+: c)
+dualRes f =
+  Resumption $ \i -> let (o, f') = applyRes f (swap i) in (swap o, dualRes f')
+
+dualInt :: Interaction a a' b b' -> Interaction b' b a' a
+dualInt (Interaction f) = Interaction $ dualRes f
 
 curryRes
   :: Resumption ((a :+: b) :+: c) ((d :+: e) :+: f)
   -> Resumption (a :+: (b :+: c)) (d :+: (e :+: f))
-curryRes (Resumption f) = Resumption $ \i ->
-  let (v', f') = f (either (Left . Left) (either (Left . Right) Right) i)
-      v''      = either (either Left (Right . Left)) (Right . Right) v'
-  in  (v'', curryRes f')
+curryRes f = Resumption $ \i -> bimap swapO curryRes (applyRes f $ swapI i)
+ where
+  swapI = either (Left . Left) (either (Left . Right) Right)
+  swapO = either (either Left (Right . Left)) (Right . Right)
 
 curryInt
   :: Interaction (a :+: b) (c :+: d) e f -> Interaction a c (d :+: e) (b :+: f)
-curryInt (Interaction f) = Interaction (curryRes f)
+curryInt (Interaction f) = Interaction $ curryRes f
 
 uncurryRes
   :: Resumption (a :+: (b :+: c)) (d :+: (e :+: f))
   -> Resumption ((a :+: b) :+: c) ((d :+: e) :+: f)
-uncurryRes (Resumption f) = Resumption $ \i ->
-  let (v', f') = f (either (either Left (Right . Left)) (Right . Right) i)
-      v''      = either (Left . Left) (either (Left . Right) Right) v'
-  in  (v'', uncurryRes f')
+uncurryRes f = Resumption $ \i -> bimap swapO uncurryRes (applyRes f $ swapI i)
+ where
+  swapI = either (either Left (Right . Left)) (Right . Right)
+  swapO = either (Left . Left) (either (Left . Right) Right)
 
 uncurryInt
   :: Interaction a b (c :+: d) (e :+: f) -> Interaction (a :+: e) (b :+: c) d f
-uncurryInt (Interaction f) = Interaction (uncurryRes f)
+uncurryInt (Interaction f) = Interaction $ uncurryRes f
 
-
--- how do we ensure that we have a function that takes the same interface type
--- you would have to have dependent types and take type variables
--- to do this
+-- to do this, you need dependent types
+-- interfaces are purely type level constructs here
 -- newtype Interface a b = Interface (a, b)
--- something :: Interface a a' -> Interface b b' -> Interaction a a' b b'
--- something (Interface (a, a')) (Interface (b, b')) = Interaction $ Resumption
+-- interact :: Interface a a' -> Interface b b' -> Interaction a a' b b'
