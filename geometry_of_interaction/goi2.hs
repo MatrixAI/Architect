@@ -1,10 +1,10 @@
 {-# LANGUAGE LambdaCase    #-}
 {-# LANGUAGE TypeOperators #-}
 
-import Data.Bifunctor
-import Data.Either
-import Data.Void
-import Text.Show.Functions
+import           Data.Bifunctor
+import           Data.Either
+import           Data.Void
+import           Text.Show.Functions
 
 infixl 6 :+:
 type a :+: b = Either a b
@@ -45,7 +45,7 @@ idResumption = Resumption $ \a -> (a, idResumption)
 -- "lambda" natural transformation in a monoidal category
 leftUnitor :: Resumption (Void :+: a) a
 leftUnitor = Resumption $ \case
-  Left v -> (absurd v)
+  Left  v -> (absurd v)
   Right a -> (a, leftUnitor)
 
 leftUnitor' :: Resumption a (Void :+: a)
@@ -54,7 +54,7 @@ leftUnitor' = Resumption $ \a -> (Right a, leftUnitor')
 -- "rho" natural transformation in a monoidal category
 rightUnitor :: Resumption (a :+: Void) a
 rightUnitor = Resumption $ \case
-  Left a -> (a, rightUnitor)
+  Left  a -> (a, rightUnitor)
   Right v -> absurd v
 
 rightUnitor' :: Resumption a (a :+: Void)
@@ -81,10 +81,10 @@ symmetric = Resumption $ \e -> (swap e, symmetric)
 -- recursion
 trace :: Resumption (i :+: r) (o :+: r) -> Resumption i o
 trace f = Resumption $ \i -> loop f (Left i)
-  where
-    loop (Resumption f) i = case f i of
-      (Left  o, f') -> (o, trace f')
-      (Right r, f') -> loop f' (Right r)
+ where
+  loop (Resumption f) i = case f i of
+    (Left  o, f') -> (o, trace f')
+    (Right r, f') -> loop f' (Right r)
 
 -- laws on traced monoidal categories
 -- these are not fully implemented because i'm lazy
@@ -95,25 +95,119 @@ trace f = Resumption $ \i -> loop f (Left i)
 -- vanishing I
 -- superposing
 
--- an interface is just 2 types together
--- one sending, one receiving
--- an interaction is defined between 2 interfaces
--- between 2 interfaces, if 1 is sending, the other receiving
--- thus the encoding of an interaction is a resumption between
--- the sending and receiving type of both processes to the receiving and sending tyep of both processes
-
-newtype Interaction a a' b b' = Interaction ((a :+: b') :->: (a' :+: b))
+-- this is also a morphism in C
+-- the mapping between 1 interface to another
+-- represented as an Resumption encoding
+-- and is also a morphism
+-- Interaction a a' b b' is a morphism (a, a') -> (b b') that is in G(C)
+-- but that is also a Resumption morphism in C itself
+newtype Interaction a a' b b' = Interaction (Resumption (a :+: b') (a' :+: b))
 
 idInteraction :: Interaction a a' a a'
 idInteraction = Interaction symmetric
 
 -- sequential interaction composition
-(<=>) :: Interaction a a' b b' -> Interaction b b' c c' -> Interaction a a' c c'
-(<=>) (Interaction f) (Interaction g) = undefined
+{-
+          +----+     +----+
+    +     |    |     |    |     +
+    | A+  | B- |     |    | B+  | C+
+    |     |    |     |    |     |
+  +-v-----v-+  |     |  +-v-----v-+
+  |         |  ++   ++  |         |
+  |    f    |   +-^-+   |    g    |
+  |         |  ++   ++  |         |
+  +-+-----+-+  |     |  +-+-----+-+
+    |     |    |     |    |     |
+    | A-  | B+ |     |    | B-  | C+
+    v     |    |     |    |     v
+          +----+     +----+
 
+f and g are interactions
+here we sequentially compose 2 interactions
+this means we actually 3 "processes"
+where the middle process interacts with 2 other processes
+this can represent A <-> B <-> C
+where B becomes a hidden process
+and the entire interaction becomes just between A and C
+this entire interaction becomes self contained
+we only need to care about A's input and output
+and C's input and output
+the assoc1 and assoc2 is what allows
+-}
+(<=>) :: Interaction a a' b b' -> Interaction b b' c c' -> Interaction a a' c c'
+(<=>) (Interaction f) (Interaction g) =
+  Interaction $ trace $ assoc1 <-> (f <|> g) <-> assoc2
+ where
+  assoc1 :: Resumption ((a :+: c') :+: (b' :+: b)) ((a :+: b') :+: (b :+: c'))
+  assoc1 = Resumption $ \case
+    Left  (Left  a ) -> (Left (Left a), assoc1)
+    Left  (Right c') -> (Right (Right c'), assoc1)
+    Right (Left  b') -> (Left (Right b'), assoc1)
+    Right (Right b ) -> (Right (Left b), assoc1)
+  assoc2 :: Resumption ((a' :+: b) :+: (b' :+: c)) ((a' :+: c) :+: (b' :+: b))
+  assoc2 = Resumption $ \case
+    Left  (Left  a') -> (Left (Left a'), assoc2)
+    Left  (Right b ) -> (Right (Right b), assoc2)
+    Right (Left  b') -> (Right (Left b'), assoc2)
+    Right (Right c ) -> (Left (Right c), assoc2)
 
 -- parallel interaction composition
-(<||>) :: Interaction a a' b b'
-       -> Interaction c c' d d'
-       -> Interaction (a :+: c) (a' :+: c') (b :+: d) (b' :+: d')
-(<||>) (Interaction f) (Interaction g) = undefined
+(<||>)
+  :: Interaction a a' b b'
+  -> Interaction c c' d d'
+  -> Interaction (a :+: c) (a' :+: c') (b :+: d) (b' :+: d')
+(<||>) (Interaction f) (Interaction g) =
+  Interaction $ (assoc1 <-> (f <|> g) <-> assoc2)
+ where
+  assoc1 :: Resumption ((a :+: c) :+: (b' :+: d')) ((a :+: b') :+: (c :+: d'))
+  assoc1 = Resumption $ \case
+    Left  (Left  a ) -> (Left (Left a), assoc1)
+    Left  (Right c ) -> (Right (Left c), assoc1)
+    Right (Left  b') -> (Left (Right b'), assoc1)
+    Right (Right d') -> (Right (Right d'), assoc1)
+  assoc2 :: Resumption ((a' :+: b) :+: (c' :+: d)) ((a' :+: c') :+: (b :+: d))
+  assoc2 = Resumption $ \case
+    Left  (Left  a') -> (Left (Left a'), assoc2)
+    Left  (Right b ) -> (Right (Left b), assoc2)
+    Right (Left  c') -> (Left (Right c'), assoc2)
+    Right (Right d ) -> (Right (Right d), assoc2)
+
+-- we can dualise an interface
+-- which means we can dualise an interaction
+-- they are the same!
+dualise :: Interaction a a' b b' -> Interaction b' b a' a
+dualise (Interaction (Resumption f)) = Interaction (dual f)
+ where
+  dual f = Resumption $ \i -> let (i', f') = f (swap i) in (swap i', dual f)
+
+curryRes
+  :: Resumption ((a :+: b) :+: c) ((d :+: e) :+: f)
+  -> Resumption (a :+: (b :+: c)) (d :+: (e :+: f))
+curryRes (Resumption f) = Resumption $ \i ->
+  let (v', f') = f (either (Left . Left) (either (Left . Right) Right) i)
+      v''      = either (either Left (Right . Left)) (Right . Right) v'
+  in  (v'', curryRes f')
+
+curryInt
+  :: Interaction (a :+: b) (c :+: d) e f -> Interaction a c (d :+: e) (b :+: f)
+curryInt (Interaction f) = Interaction (curryRes f)
+
+uncurryRes
+  :: Resumption (a :+: (b :+: c)) (d :+: (e :+: f))
+  -> Resumption ((a :+: b) :+: c) ((d :+: e) :+: f)
+uncurryRes (Resumption f) = Resumption $ \i ->
+  let (v', f') = f (either (either Left (Right . Left)) (Right . Right) i)
+      v''      = either (Left . Left) (either (Left . Right) Right) v'
+  in  (v'', uncurryRes f')
+
+uncurryInt
+  :: Interaction a b (c :+: d) (e :+: f) -> Interaction (a :+: e) (b :+: c) d f
+uncurryInt (Interaction f) = Interaction (uncurryRes f)
+
+
+-- how do we ensure that we have a function that takes the same interface type
+-- you would have to have dependent types and take type variables
+-- to do this
+-- newtype Interface a b = Interface (a, b)
+-- something :: Interface a a' -> Interface b b' -> Interaction a a' b b'
+-- something (Interface (a, a')) (Interface (b, b')) = Interaction $ Resumption
