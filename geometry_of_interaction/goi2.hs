@@ -197,10 +197,6 @@ curryRes f = Resumption $ \i -> bimap swapO curryRes (applyRes f $ swapI i)
   swapI = either (Left . Left) (either (Left . Right) Right)
   swapO = either (either Left (Right . Left)) (Right . Right)
 
-curryInt
-  :: Interaction (a :+: b) (c :+: d) e f -> Interaction a c (d :+: e) (b :+: f)
-curryInt (Interaction f) = Interaction $ curryRes f
-
 uncurryRes
   :: Resumption (a :+: (b :+: c)) (d :+: (e :+: f))
   -> Resumption ((a :+: b) :+: c) ((d :+: e) :+: f)
@@ -209,8 +205,19 @@ uncurryRes f = Resumption $ \i -> bimap swapO uncurryRes (applyRes f $ swapI i)
   swapI = either (either Left (Right . Left)) (Right . Right)
   swapO = either (Left . Left) (either (Left . Right) Right)
 
+-- a hom-set is a set of all morphisms between 2 objects
+-- a tensor product * is whatever you define to be a product, here it's an Either
+-- curry is a functor that maps the hom-set H(A*B, C)
+-- to the hom-set H(A, C^B)
+-- the C^B is an exponential object
+-- exponential objects are generalisations of function spaces between sets
+
+curryInt
+  :: Interaction (a :+: b) (a' :+: b') c c' -> Interaction a a' (b' :+: c) (b :+: c')
+curryInt (Interaction f) = Interaction $ curryRes f
+
 uncurryInt
-  :: Interaction a b (c :+: d) (e :+: f) -> Interaction (a :+: e) (b :+: c) d f
+  :: Interaction a a' (b :+: c) (b' :+: c') -> Interaction (a :+: b') (a' :+: b) c c'
 uncurryInt (Interaction f) = Interaction $ uncurryRes f
 
 -- to do this, you need dependent types

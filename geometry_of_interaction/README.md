@@ -253,3 +253,21 @@ Apparently the ability to update behaviour based on previous inputs means that w
 Note that `Resumption` is a profunctor. So we could apply things like dimap to it. But `dimap` does have to be careful. Since what we are doing is transforming the `Resumption` morphism by making changes to it. We gain access to `dimap`.
 
 If you use `infix`.
+
+---
+
+So I've written the curry and uncurry functions.
+
+And they are related to the lollipop operator which is intended to define a linear exponential which turns a traced monoidal category into a closed monoidal category.
+
+Curry and uncurry are functors. There are natural transformations between them. Here we have a curry as a functor that takes a hom-set of H(A*B, C) to a hom-set H(A, C^B).
+
+We are able to translate hom-set cat-theory notation to just into an interaction. That is an interaction is both H(A*B, C) and H(A, C^B). We can see that in `curryInt`. The cat theory notation deals with 3 objects: A, B, C. Whereas the Interaction deals with 6 types. Those 6 types are actually in pairs.
+
+We can see that category theory `*` is encoded as a pairwise either of `a a'` and `b b'`. Subsequently the linear exponential of `C^B` is encoded by using a pairwise either of `b b'` and `c c'`. However we swap the `b'` `b` to the left side and their respective positions.
+
+Doing this sort of makes sense, since an Interaction is already encoded as a resumption of Eithers. You can see that curryInt takes an Interaction and produces another Interaction. The first Interaction encodes a morphism between `A*B` and `C`, but the second Interaction encodes between `A` and `C^B`. And it works because an interaction itself is a Resumption that has that weird ordering.
+
+An interaction is already a resumption between 2 eithers. And by embedding eithers into the interation types, we now have a higher order language as interactions can be embedded into interactions.
+
+Oh... interesting
