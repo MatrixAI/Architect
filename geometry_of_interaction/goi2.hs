@@ -26,7 +26,7 @@ infixl 6 <->
 
 -- parallel composition
 infixl 7 <|>
-(<|>) :: (Resumption a b) -> (Resumption c d) -> Resumption (a :+: c) (b :+: d)
+(<|>) :: Resumption a b -> Resumption c d -> Resumption (a :+: c) (b :+: d)
 (<|>) (Resumption f) (Resumption g) = Resumption $ \case
   Left  a -> let (b, f') = f a in (Left b, f' <|> Resumption g)
   Right c -> let (d, g') = g c in (Right d, (Resumption f) <|> g')

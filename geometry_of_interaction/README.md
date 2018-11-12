@@ -275,3 +275,69 @@ Oh... interesting
 The lollipop operator is the linear exponential. And that can get defined as just a series of types in a particular structure that gets embedded into an interaction. The fact that it can be embedded in an interaction makes it interesting. The embedding itself produces a higher order language.
 
 A closed monoidal category has the right adjoint functor called curry (it is right adjoint to the right tensoring functor `*`), and IF you are able to construct this functor in your language/category, then this means you have a higher order language or a closed monoidal category. That's how you prove that you have what you need!
+
+---
+
+Time to try to continue with module systems. How does this all work in that context?
+
+http://semantic-domain.blogspot.com/2012/12/total-functional-programming-in-partial.html
+
+Most of us prefer lambda calculus to SKI combinators for good  reason. Programs with variables and binders are much easier to read. All operations in lambda calculus can be encoded via abstraction elimination into SKI calculus as binary trees whose leaves are one of the three symbols S, K, and I.
+
+We want to see how to compile linear lambda calculus into combinator terms. TO do this, we need to introduce the basic ideas in a simpler setting. So we are not compiling linear types yet.
+
+The total language here is System T, which is a first proper total functional programming language. Extending simply typed lambda calculus with a type of natural numbers, and iteration over them. This system is remarkably expressive.
+
+It is simply typed lambda calculus with natural numbers and iteration defined over them.
+
+In OCaml, it models it as a type signatures as well. With the usage of a module signature using `id : ('a, 'a) hom`. Where `hom` is a type. That takes the `('a, 'b)`.
+
+So the idea is that this represents an interface that some sort of module is going to implement. These are the type signatures in a way. To do this in the Haskell way, we can just have individual type signatures for our functions. Or we can define a typeclass some how, but it doesn't make sense.
+
+I don't know why we call it Hom.
+
+The linear lambda calculus where variables are restricted to occur in terms exactly once, has a very weak expressive power. In particular all functions terminate in linear time. In this paper we consider a simple extension with natural numbers and restricted iterator. Only closed linear functions can be iterated. We show properties of this linear version of System T using closed reduction strategy, and study the class of functions that can be represented. Surprisingly this linear calculus offers a huge increase in expressive power over previous linear versions of System T which is closed at construction, rather than closed at reduction.
+
+System T is a theory of arithmetic in all finite types used in Goedel's Dialectica interpretation. It seems that SystemT has some relationship to linear lambda calculus.
+
+Abstraction elimination is the process of turning regular lambda calculus terms into point-free combinators.
+
+Extensions on simply typed lambda calculus:
+
+1. System T
+2. PCF
+3. System F
+4. LF
+
+Higher order abstract syntax.
+
+What is the computational power of linear calculus without the exponentials. A calculus that is syntactically linear: all variables occur exactly once. This is a severely restricted form of the (simply typed) lambda calculus. Computation is deifned by the usual beta-reduction rule.
+
+We introduce pairs and natural numbers with the corresponding iterator to obtain a linear version of Godel's System T. Ok so system T already exists, and then we geta linear version of this. We call this System L. System T is an extension of simply typed lambda calculus with numbers and a recursion operator. Its power comes essentially from primitive recursion combined with linear higher order functions.
+
+In a correctness proof for geometry of interaction, Girard uses a strategy ofor cut elimination where cut elimination steps can only take place when exponential boxes are closed. Not only is htis strategy for cut elimination simpler than the general one, it is also exceptionally efficient in terms of the number of cut elimination steps.
+
+Linearity can be defined in the 3 main ways:
+
+1. Syntactical - linear use of variables in terms and it is the computational counterpart of linearity in linear logic
+2. Operational - redexes cannot be deuplicated during evaluation
+3. Denotational - linear functions can be defined in the language
+
+Apparently syntactical linearity is best.
+
+Denotational semantics is mathematical and equational. The details of the reduction matter less than the end result which is a timeless value in some mathematical space.
+
+Operational semantics is algorithmic. It unfolds in individual steps in time. The process is part of the meaning, and the end result is just a distinguished step in that process.
+
+> To start with, denotational semantics wants to say something like "the meaning of this notation is that". A real semanticist would want to imagine that the meanings are what exist in our mind and the notations are just a way of expressing those meanings. The requirement that denotational semantics should be compositional follows from this. If the meanings are primary and the notations secondary, then we have no choice but to define the meanings of bigger notations as functions of the meanings of their constituents.
+> https://cstheory.stackexchange.com/questions/3577/what-constitutes-denotational-semantics
+
+Ok so that's interesting.
+
+In terms of implementing the module signature, we are not even going to try to "abstract" this implementation, and just straight forward implement it. This means `Hom a b` is actually just `a -> b`. So `type Hom a b = a -> b`.
+
+So the GoI exercise was to show how to derive a higher order language from a first order language. We did this by extending the first order language until we got a higher order language. It is implemented as a bunch of combinators. Assume if we have a lambda calculus of some sort, then we can compile it to the combinators. This means we can use this higher order language on the backend (and it will be easier to manipulate), but we present a more easier to use language on the front end with variable binders and such.
+
+So this article http://semantic-domain.blogspot.com/2012/12/total-functional-programming-in-partial.html basically produces a similar problem. Where we end up with a higher order combinator language. But it's hard to use. So instead we then define an abstract syntax that has let bindings. It uses OCaml metaprogramming to later allow us to write this in OCaml and then compile it straight to the combinator language. We shouldn't really need to use this metaprogramming (but I guess it's a useful exercise to learn how to embed a language into OCaml). But we actually want an external DSL. I'm pretty sure the same internal DSL is achievable just by using ADTs (but I guess it would not be truly embedded with metaprogramming template haskell.) But since we are working on a external DSL this should be possible.
+
+1 is the unit type. pi1 and pi2 are fst and snd, they are pair projections. The e is the syntax of expressions. Whereas the A is the syntax of types (it is common to use capitals to represent types and lowecase to represent expressions). We also have extra syntax in the module language.
