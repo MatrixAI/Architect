@@ -341,3 +341,211 @@ So the GoI exercise was to show how to derive a higher order language from a fir
 So this article http://semantic-domain.blogspot.com/2012/12/total-functional-programming-in-partial.html basically produces a similar problem. Where we end up with a higher order combinator language. But it's hard to use. So instead we then define an abstract syntax that has let bindings. It uses OCaml metaprogramming to later allow us to write this in OCaml and then compile it straight to the combinator language. We shouldn't really need to use this metaprogramming (but I guess it's a useful exercise to learn how to embed a language into OCaml). But we actually want an external DSL. I'm pretty sure the same internal DSL is achievable just by using ADTs (but I guess it would not be truly embedded with metaprogramming template haskell.) But since we are working on a external DSL this should be possible.
 
 1 is the unit type. pi1 and pi2 are fst and snd, they are pair projections. The e is the syntax of expressions. Whereas the A is the syntax of types (it is common to use capitals to represent types and lowecase to represent expressions). We also have extra syntax in the module language.
+
+Here we are going to follow a Lisp like strategy in embedding the syntax of our language. We will be reusing Ocaml syntax for types and programs. So our parser is just a function that takes OCaml AST and converts it into elements of term and tp data types. In our program we have represented as ADT. But they use `tp` and `term`. Camlp4 lets us match quotations in pattern match expressions so this is easy.
+
+Here `<:ctyp<t>>` just matches an AST with the same shape as term t. Holes inside the pattern can be bound to variables using the notation `$x$`. We can also do the same thing with expressions using the quotation form `<:expr<e>>`. As a result all the issues of precedence is handled automatically. I'm not sure how to use template haskell, so we need to figure out how ignore these sorts of things.
+
+But here they are:
+
+```
+  let rec tp = function
+    | <:ctyp< nat >> -> Nat
+    | <:ctyp< unit >> -> One 
+    | <:ctyp< $a$ -> $b$ >> -> Arrow(tp a, tp b)
+    | <:ctyp< $a$ * $b$ >> -> Prod(tp a, tp b)
+    | _ -> failwith "unhandled type expression"
+
+  let rec term = function
+    | <:expr< () >>           -> Unit
+    | <:expr< ($e1$, $e2$) >> -> Pair(term e1, term e2)
+    | <:expr< (fst $e$) >>    -> Fst (term e)
+    | <:expr< (snd $e$) >>    -> Snd (term e)
+    | <:expr< Zero >>         -> Zero
+    | <:expr< Succ($e$) >>    -> Succ(term e)
+    | <:expr< iter (match $en$ with
+                     | Zero -> $ez$ 
+                     | Succ $lid:x$ -> $es$) >> ->
+        Iter(term en, term ez, x, term es)
+    | <:expr< let $lid:x$ : $t$ = $e1$ in $e2$ >> ->
+        Let(x, Annot(term e1, tp t), term e2)
+    | <:expr< let $lid:x$ = $e1$ in $e2$ >> ->
+        Let(x, term e1, term e2)
+    | <:expr< ($e$ : $t$) >> -> Annot(term e, tp t)
+    | <:expr< $lid:x$ >>      -> Var x
+    | <:expr< fun $lid:x$ -> $e$ >> -> Lam(x, term e)
+    | <:expr< ($e1$ $e2$) >>    -> App(term e1, term e2)
+    | _ -> failwith "Unknown expression"
+```
+
+At the end of this, this is the end of the `module Term`.
+
+We can see that `tp` basically turns quoted expressions and turns them into the equivalent thing inside their ADT. In the case of `tp` that's a TType constructor. Then with `term` it takes a quoted expression (note the usage of `<:expr< () >>` is used to reprepresent the Unit constructor). and turns it into the TTerm constructor.
+
+So really it's a parser. This is literally a parser.
+
+But we don't want to use this, so we just want to work from the constructors themselvees.
+
+But the problem is that... the `check` system seems to produce quoted expressions!? At least within a Context monad!
+
+That happens in the Quote module. This uses quotations as a meta-language.
+
+Things like:
+
+```
+module Quote = 
+struct
+  let id = <:expr< Goedel.id >>
+  let compose f g = <:expr< Goedel.compose $f$ $g$ >>
+  let unit = <:expr< Goedel.unit >>
+
+  let fst = <:expr< Goedel.fst >>
+  let snd = <:expr< Goedel.snd >>
+  let pair f g = <:expr< Goedel.pair $f$ $g$ >>
+  let prod f g = <:expr< Goedel.prod $f$ $g$ >>
+
+  let curry f = <:expr< Goedel.curry $f$ >> 
+  let eval = <:expr< Goedel.eval >> 
+
+  let zero = <:expr< Goedel.zero >> 
+  let succ = <:expr< Goedel.succ >> 
+  let iter z s = <:expr< Goedel.iter $z$ $s$ >> 
+
+  let rec find x  = function
+    | [] -> raise Not_found
+    | (x', t) :: ctx' when x = x' -> <:expr< Goedel.snd >> 
+    | (x', t) :: ctx' -> <:expr< Goedel.compose Goedel.fst $find x ctx'$ >>
+end
+```
+
+Here we have rewritten the quoted expressions... that seems to give us expressions of the `Goedel` module's expressions.
+
+This says that they want to construct terms of ML type `Hom a b`. The Quote module gies a set of functions which construct AST nodes corresponding to each of the combinators in our interface. How does this correspond to the syntax that we we will be using!?
+
+Note the usage of `Term.term`. It can refer to the type or function. Since it is defined as both. So I think when used in a type signature, it refers to the types. When used in expression space it refers to the function.
+
+In the `Elaborate` module, it opens the Term module, and we end up seeing it use `Term.term` only in the type space.
+
+In the `Extension` module, we get an actual usage of `Term.term` which is applied to something...
+
+It says that they can now use metaprogramming which lets them splice into our DSL into ordinary OCaml terms. This extends OCaml's grammar with T(t) construct which constructs of type `Hom () a`.
+
+You can see something like:
+
+```
+match Context.run (Elaborate.synth (Term.term tm)) with
+| Context.Done (e, _) -> e 
+| Context.Error msg -> Loc.raise _loc (Failure msg)_
+```
+
+Then in the `Test`  module, you can see that's when they use their DSL inside `e1` and the `e2`. You can also see that they use this `T` prefix wrapping the entire program. Basically that's like their quasiquoter that would be used inside Template Haskell. In haskell it looks liek:
+
+```
+v :: String
+v = [something| ... some DSL here ... ]
+```
+
+It's pretty cool!
+
+Ok so we are not going to do that then...
+
+Then why use `return unit` for the Elaborate.
+
+It says that a elaborator, we don't just type check the term, we also produce a term in the output language as part of the type checking process. Why do we do that?
+
+Ok so interestingly the syntax extension actually performs `synth` not check. Instead the `synth` ends up calling the `check`.
+
+Ok so if we are doing `synth` on the `term`, this means we get literal expressions. Then we use the `Term.term` to first convert the raw expressions into things like `Unit` and `Pair` which are the constructors of TTerm. Weirdly I don't see usage of things like `Term.tp` as a function... 
+
+Oh actually I see. `Term.term` as a function actually calls `Term.tp`. Because the term language becomes annotations. You can see things like:
+
+```
+| <:expr< let $lid:x$ : $t$ = $e1$ in $e2$ >> ->
+        Let(x, Annot(term e1, tp t), term e2)
+```
+
+Here we can see that if we have `$lid:x$ : $t$ = $e1$ in $e2$`, then that is translated into an ADT using `Let`, but it also calls `tp` as a function on the `t` type. Thus giving us what we want. Ok so this parser is the entrypoint parser.
+
+Ok so we can assume that `term` has already been done. So we already have an algebraic structure. So the `synth` takes the algebraic structure, and returns:
+
+```
+synth :: Term.term -> Context.t (Ast.expr, Term.tp)
+```
+
+So we are taking the algebraic structure and returning within the same Context monad a tuple of the elaborated expression and the type. The check function takes a term and type to check it against, and returns elaborated code. The synth function takes a term and it infers a type for that term AND also in addition emitting code for that term.
+
+Ok I get it, an elaborator both checks the type, and returns the output code. So it's like going from a high-level language to a low-level language.
+
+Many programming languages and proof assistants are defined by elaboration from a high-level language with a great deal of implicit information to a highly explicit core language. Or translating a user-accessible language into a smaller core language. Apparently the smaller language can be type checked more easily.
+
+Many typed languages include both a type checker and a type elaborator. The type elaborator translates source code to an explicitly typed representation for the type checker to validate. Normally, programmers cannot extend the behavior of the type elaborator without modifying the compiler.
+
+Bidirectional type checking? Means consider a judgement `t: A`, it means to split into 2 judgements:
+
+1. `t <= A`: the term t can be checked to have the type `A`
+2. `t => A`: the term t we can infer or synthesise the type A it has
+
+In the case of `t <= A`, we consider both `t` and `A` to be inputs to our checking function. Whereas in the case of `t => A`, we only consider the `t` to be the input to our synthesise function.
+
+So the algorithm ends up being `check(, A)`. And `synth(t)`.
+
+Ok so we are doing these 2, but we are also elaborating when we do the `check`. It's sort of interesting that we end up producing our core language when using the ADT.
+
+```
+High Level Language -> SystemT ADT -> Core Combinators
+```
+
+So that's why we have 3 levels. But I still find it weird, that we end up using the Ocaml syntax extension again to wrap the core combinators.
+
+Oh... `Context.t (Ast.expr, Term.tp)`.
+
+And what is `Context.t`.
+
+It's this:
+
+```
+-- Ctx is a list of (variables and types)
+-- it's the typing context I think
+type Var = String
+data Ctx = [(Var, TType)]
+type T a = Ctx -> Either String a
+
+
+-- when we run the program, we are running with an empty context
+-- the program has no other environment variables within the system
+-- so we expect that the program is a t
+run :: T
+run program = program []
+```
+
+Left indicates error, Right indicates it is done. And we are done with a result expression and a type. And we are still using the macro system to wrap our combinators. Even though we should be able to construct a combinator language. So basically instead of using that `hom`, we should be using another ADT for our Hom language!
+
+There you go...
+
+So we want to do something where we are doing `Context.t (TComb, TType)`.
+
+Because it's a lower level expression language that has the same typing rules. So it uses the same type. But we now have a lower level language. Going from `TTerm` to `TComb`.
+
+```
+synth :: TTerm -> Context (TComb, TType)
+```
+
+But the TComb language is weird. How do I get a combinator language?
+
+We start with a Hom. And some specific Homs, then we have `curry`, `eval` that work only on Homs. So the language are constructs that work on Homs. I think this makes sense. But we need to define several kinds of Homs.
+
+Our system needs to return TComb, but TComb doesn't seem to make sense as a language. It's constructs applies to a single type, that is the Hom. Which always 2 type variables. How do I do things like composition? It's like we have to discard the types some how.
+
+```
+data Expr a b = Expr (Hom a b)
+```
+
+Existential types?
+
+No we are meant to use GADTs.. that's right.
+
+Ok I see now. What we have previous is a SystemTLambda. The other is SystemTCombinator.
+
+> In computer science, combinatory logic is used as a simplified model of computation, used in computability theory and proof theory. Despite its simplicity, combinatory logic captures many essential features of computation.
+
+> Combinatory logic can be viewed as a variant of the lambda calculus, in which lambda expressions (representing functional abstraction) are replaced by a limited set of combinators, primitive functions from which bound variables are absent. It is easy to transform lambda expressions into combinator expressions, and combinator reduction is much simpler than lambda reduction. Hence combinatory logic has been used to model some non-strict functional programming languages and hardware. The purest form of this view is the programming language Unlambda, whose sole primitives are the S and K combinators augmented with character input/output. Although not a practical programming language, Unlambda is of some theoretical interest.

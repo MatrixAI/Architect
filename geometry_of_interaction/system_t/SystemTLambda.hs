@@ -1,70 +1,4 @@
-{-# LANGUAGE LambdaCase    #-}
 
-import Prelude hiding (fst, snd, curry, succ)
-import qualified Prelude
-
-type Hom a b = a -> b
-
-data Nat = Zero | Succ Nat
-
-idT :: Hom a a
-idT = id
-
--- this is functional composition
--- this is straight morphism composition
-compose :: Hom a b -> Hom b c -> Hom a c
-compose = flip (.)
-
-unit :: Hom a ()
-unit = const ()
-
-pair :: Hom a b -> Hom a c -> Hom a (b, c)
-pair f g a = (f a, g a)
-
-fst :: Hom (a, b) a
-fst = Prelude.fst
-
-snd :: Hom (a, b) b
-snd = Prelude.snd
-
-curry :: Hom (a, b) c -> Hom a (b -> c)
-curry = Prelude.curry
-
-eval :: Hom ((a -> b), a) b
-eval (f, v) = f v
-
-zero :: Hom () Nat
-zero () = Zero
-
-succ :: Hom Nat Nat
-succ n = Succ n
-
-iter :: Hom a b -> Hom (a, b) b -> Hom (a, Nat) b
-iter base recurse (a, n) = case n of
-  Zero   -> base a
-  Succ n -> recurse (a, iter base recurse (a, n))
-
--- this language only has the primitive value of natural numbers
--- here we use this to run through some closed system T expression
--- it has to be closed in the sense that it takes no further parameters
--- that's why we assume it takes ()
-run :: Hom () Nat -> Int
-run e = loop $ e ()
- where
-  loop = \case
-    Zero   -> 0
-    Succ n -> 1 + loop n
-
-result = run $ zero `compose` succ
-
--- this is actually not meant to work
--- but this type checks because of Haskell's laziness
--- note that bad is a Hom () Nat
-bad :: Hom () Nat
-bad = compose bad succ
-
--- System T language
--- will be compiled to the combinator form above
 
 type TVar = String
 data TType = One | Prod TType TType | Arrow TType TType | Nat
@@ -111,5 +45,24 @@ showTType ttype = case ttype of
 -- and we have a combinatory language above
 -- this is useful to understand bidirectional type checking here
 
+-- we are just going to use a normal error
+-- here the type echecking does something interesting
+-- here our type checker checks the combination of both the term and type
+-- note that `return unit`
+-- this means the unit in the example is a AST macro system using `<:expr<Goedel.unit >>`
+-- but we are just going to use the `unit` directly!
+-- in that case it's a Hom a ()
+-- and that's a function type!
+-- how weird!
+-- especially it should be a expr!
+-- let unit = <:expr< Goedel.unit >>
+-- yep it doesn't really make sense
+-- since the actua lthing is always an Expr
+-- so I think we are always returning some sort of Expr
+
+
 check :: TTerm -> TType -> Context TTerm
-check tterm ttype = undefined
+check tterm ttype = case (tterm ttype) of
+  (Lam x e, Arrow ttype1 ttype2) -> undefined
+  (Lam _ _, ttype) -> error $ "Unexpected function type " ++ showTType ttype
+  (Unit, One) -> return unit
