@@ -549,3 +549,10 @@ Ok I see now. What we have previous is a SystemTLambda. The other is SystemTComb
 > In computer science, combinatory logic is used as a simplified model of computation, used in computability theory and proof theory. Despite its simplicity, combinatory logic captures many essential features of computation.
 
 > Combinatory logic can be viewed as a variant of the lambda calculus, in which lambda expressions (representing functional abstraction) are replaced by a limited set of combinators, primitive functions from which bound variables are absent. It is easy to transform lambda expressions into combinator expressions, and combinator reduction is much simpler than lambda reduction. Hence combinatory logic has been used to model some non-strict functional programming languages and hardware. The purest form of this view is the programming language Unlambda, whose sole primitives are the S and K combinators augmented with character input/output. Although not a practical programming language, Unlambda is of some theoretical interest.
+
+
+After System T... we will eventually understand System F (https://stackoverflow.com/questions/25255413/how-did-haskell-add-turing-completeness-to-system-f).
+
+> The term simple type is also used to refer to extensions of the simply typed lambda calculus such as products, coproducts or natural numbers (System T) or even full recursion (like PCF). In contrast, systems which introduce polymorphic types (like System F) or dependent types (like the Logical Framework) are not considered simply typed.
+
+> Some compilers for functional languages (not GHC!) use combinators and supercombinators as intermediate steps in compilation. As with any similar compiler technology, the reason for doing this is to admit optimization analysis that is more easily performed in such a simplified, minimal language. One such core language built on supercombinators is Edwin Brady's epic.

@@ -26,7 +26,7 @@ data THom a b where
   Snd :: THom (a, b) b
   Curry :: THom (a, b) c -> THom a (b -> c)
   Eval :: THom ((a -> b), a) b
-  Iter :: Hom a b -> Hom (a, b) b -> Hom (a, TNat) b
+  Iter :: THom a b -> THom (a, b) b -> THom (a, TNat) b
 
 -- the above GADT describes the language, however later in order to interpret the language
 -- the interpreter below interprets THom as a function in Haskell
