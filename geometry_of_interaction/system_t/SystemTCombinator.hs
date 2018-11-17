@@ -17,16 +17,17 @@ data TNat = Zero | Succ TNat
 
 data THom a b where
   Id :: THom a a
-  Unit :: THom a ()
+  Unit :: THom a () -- Unique map ! (A -> 1)
   ZeroH :: THom () TNat
   SuccH :: THom TNat TNat
-  Compose :: THom a b -> THom b c -> THom a c
-  Pair :: THom a b -> THom a c -> THom a (b, c)
+  Compose :: THom a b -> THom b c -> THom a c -- diagramatic composition ;
+  Pair :: THom a b -> THom a c -> THom a (b, c) -- f : A -> X, A -> Y, then A -> X*Y
   Fst :: THom (a, b) a
   Snd :: THom (a, b) b
   Curry :: THom (a, b) c -> THom a (b -> c)
-  Eval :: THom ((a -> b), a) b
+  Eval :: THom ((a -> b), a) b -- (A = B) * A -> B
   Iter :: THom a b -> THom (a, b) b -> THom (a, TNat) b
+
 
 -- the above GADT describes the language, however later in order to interpret the language
 -- the interpreter below interprets THom as a function in Haskell
@@ -34,6 +35,8 @@ data THom a b where
 -- to give an implementation is to also intepret these things
 -- so the above is a free monad, and then we have an interpreter of these things
 -- I'm commenting them out for now until I figure out how to write the interpreter
+
+
 
 -- import Prelude hiding (fst, snd, curry, succ)
 -- import qualified Prelude

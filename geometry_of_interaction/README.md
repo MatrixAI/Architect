@@ -556,3 +556,52 @@ After System T... we will eventually understand System F (https://stackoverflow.
 > The term simple type is also used to refer to extensions of the simply typed lambda calculus such as products, coproducts or natural numbers (System T) or even full recursion (like PCF). In contrast, systems which introduce polymorphic types (like System F) or dependent types (like the Logical Framework) are not considered simply typed.
 
 > Some compilers for functional languages (not GHC!) use combinators and supercombinators as intermediate steps in compilation. As with any similar compiler technology, the reason for doing this is to admit optimization analysis that is more easily performed in such a simplified, minimal language. One such core language built on supercombinators is Edwin Brady's epic.
+
+
+---
+
+For some reason, find and lookup functions in the example end up constructing an infinite type. This is because we are using GADTs, and Compose on Fst and Snd... etc, produces a different THom type.
+
+This is not allowed in Haskell. So we have 2 options.
+
+We can nwrap the THom into existentially quantifie variables like:
+
+```
+data TExpr = forall a b. TExpr (THom a b)
+```
+
+But this just exposes an outside type that encapsulates the a and b. But now we have no constraints on the a and b, so we know nothing about what to do with internal types. But this still doesn't solve the problem.
+
+The find and lookup functions ultimately take a tvar and a context, an try to produce projection expression. I don't even understand why this is necessary. The sync is mean to take a term and synthesize the type. But here it's an elaborator as well. So it returns some target expression and the type as well.
+
+For some reason a `Var TVar` SystemTLambda expression is meant to be converted to a series of composed projection expressions. Why is this? Why is the SystemTLambda somehow a projection expression!?
+
+The projections is a algebraic way of representing https://en.wikipedia.org/wiki/De_Bruijn_index. That is a `Var v` is like `hello` in the raw syntax. So `hello` is the variable, thus we have `Var "hello"` in SystemTLambda. It's a lexical identifier. To convert this to SystemTCombinator, combinators don't have variables. So instead we need to "refer" a specific position in the combinator language to get that variable value. To do so, we use projection expressions as they allow us to go from pairs to some single thing.
+
+Man that is pretty weird.
+
+The OCaml example takes raw syntax exposed as OCaml macros that is translated to Ocaml AST. It then converts that AST to SystemTLambda. Finally it takes SystemTLambda to SystemTCombinator. The `Term.term` and `Term.tp` is what takes OCaml AST to SystemTLambda.
+
+`synth` takes SystemTLambda and turns them into SystemTCombinator and type. We are sharing the same types between SystemTLambda and SystemTCombinator.
+
+`check` takes SystemTLambda and types and gives us back SystemTCombinator as well.
+
+For some reason, that's wrapped in `Ast.expr`.
+
+The Extension module uses `Term.term` as a function to convert the OCaml AST to SystemTLambda. This is passed to `Elaborate.synth` and finally `Context.run`. The result is still another OCaml AST, but this time an AST of SystemTCombinator.
+
+So we just went from raw OCaml Syntax -> OCaml AST -> SystemTLambda -> OCaml AST of SystemTCombinator.
+
+There is no evaluation of the combinators. It's just left as an AST.
+
+Then that AST can be interpreted, and evaluated. That's the `Goedel.run`. But it would have to run within the AST system some how.
+
+Ok in that light, it seems to make sense that our type should be recursive. Since we need an AST type essentially.
+
+But how do you create an AST type of combinators?
+
+```
+data AST = Something (THom a b) ...
+```
+
+But those types will be encapsulated in the AST.
