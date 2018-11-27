@@ -13,21 +13,20 @@ module SystemTCombinator where
 -- Godel extended the simply-typed lambda calculus with a type of natural numbers, and iteration over them (logicians call this system "higher-type arithmetic")
 -- it's a combinatory language though, there's no actual lambda calculus as there is no function abstraction, nor variable binders
 
-data TNat = Zero | Succ TNat
+-- data TNat = Zero | Succ TNat
 
-data THom a b where
-  Id :: THom a a
-  Unit :: THom a () -- Unique map ! (A -> 1)
-  ZeroH :: THom () TNat
-  SuccH :: THom TNat TNat
-  Compose :: THom a b -> THom b c -> THom a c -- diagramatic composition ;
-  Pair :: THom a b -> THom a c -> THom a (b, c) -- f : A -> X, A -> Y, then A -> X*Y
-  Fst :: THom (a, b) a
-  Snd :: THom (a, b) b
-  Curry :: THom (a, b) c -> THom a (b -> c)
-  Eval :: THom ((a -> b), a) b -- (A = B) * A -> B
-  Iter :: THom a b -> THom (a, b) b -> THom (a, TNat) b
-
+-- data THom a b where
+--   Id :: THom a a
+--   Unit :: THom a () -- Unique map ! (A -> 1)
+--   ZeroH :: THom () TNat
+--   SuccH :: THom TNat TNat
+--   Compose :: THom a b -> THom b c -> THom a c -- diagramatic composition ;
+--   Pair :: THom a b -> THom a c -> THom a (b, c) -- f : A -> X, A -> Y, then A -> X*Y
+--   Fst :: THom (a, b) a
+--   Snd :: THom (a, b) b
+--   Curry :: THom (a, b) c -> THom a (b -> c)
+--   Eval :: THom ((a -> b), a) b -- (A = B) * A -> B
+--   Iter :: THom a b -> THom (a, b) b -> THom (a, TNat) b
 
 -- the above GADT describes the language, however later in order to interpret the language
 -- the interpreter below interprets THom as a function in Haskell
@@ -37,6 +36,38 @@ data THom a b where
 -- I'm commenting them out for now until I figure out how to write the interpreter
 
 
+-- the above tries to lift the types to the haskell type level
+-- we want to avoid doing that, so that types of the object language is embedded, and not lifted into Haskell
+-- so that means THom a b, are kept inside...
+-- instead we take a type... and then match against the type
+--
+-- -- and we want ensure that we have special types...
+-- we always take a specific constructor
+-- so we must enure that the Unit constructor is constructed with the necessary things?
+--
+
+
+
+data THom = IdH
+          | UnitH
+          | ZeroH
+          | SuccH
+          | ComposeH THom THom
+          | PairH THom THom
+          | FstH
+          | SndH
+          | CurryH THom
+          | EvalH
+          | IterH THom THom
+
+-- we can write intepreters for THom below
+-- note that THom isn't really typed
+-- when we construct, the expressions can be bad
+-- but we are going to check the types ahead of this
+-- so by the time we generate this
+-- we won't need to check types again
+-- we can assume it works
+-- but it does mean that the interpreter itself will be partial!
 
 -- import Prelude hiding (fst, snd, curry, succ)
 -- import qualified Prelude

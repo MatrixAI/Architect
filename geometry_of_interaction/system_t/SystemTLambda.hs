@@ -1,11 +1,20 @@
-{-# LANGUAGE ExistentialQuantification, PartialTypeSignatures #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module SystemTLambda where
 
 import           qualified SystemTCombinator as SystemTC
+import Control.Monad.Except
+
+-- so SystemTC now just exposes THom type (..)
+-- constructors that we need to work here
+
 
 type TVar = String
-data TType = One | Prod TType TType | Arrow TType TType | Nat
+data TType = One | Prod TType TType | Arrow TType TType | Nat deriving (Eq)
 data TTerm = Var TVar
            | Let TVar TTerm TTerm
            | Lam TVar TTerm
@@ -47,12 +56,17 @@ instance Monad ReaderError where
   xs >>= f = ReaderError $ \ctx ->
     either Left (\v -> run (f v) ctx) $ run xs ctx
 
+instance MonadError String ReaderError where
+  throwError e = ReaderError $ const $ Left e
+  catchError xs f = ReaderError $ \ctx ->
+    either (\e -> run (f e) ctx) Right $ run xs ctx
+
 -- a hypothesis is a (TVar, TType)
 -- it is 1 judgement within the context
 -- we take a ReaderError a, and return ReaderError a
 -- with a new hypothesis in its context!
-with_hyp :: (TVar, TType) -> ReaderError a -> ReaderError a
-with_hyp hyp cmd = ReaderError $ \ctx -> run cmd (hyp : ctx)
+withHyp :: (TVar, TType) -> ReaderError a -> ReaderError a
+withHyp hyp cmd = ReaderError $ \ctx -> run cmd (hyp : ctx)
 
 -- it seems that fst/snd may be used to help fidnign the right type
 -- it's part of the lookup function
@@ -80,13 +94,13 @@ with_hyp hyp cmd = ReaderError $ \ctx -> run cmd (hyp : ctx)
 
 -- it seems we need to existentially quantify our THom types
 -- otherwise there doesn't seem to be a way to produce what we want
-data TExpr = forall a b. TExpr (SystemTC.THom a b)
+-- data TExpr = forall a b. TExpr (SystemTC.THom a b)
 
-find :: TVar -> Context -> _
-find tvar [] = error "Not Found"
-find tvar ((tvar', ttype):ctx)
-  | tvar == tvar' = SystemTC.Snd
-  | otherwise     = SystemTC.Compose SystemTC.Fst (find tvar ctx)
+-- find :: TVar -> Context -> _
+-- find tvar [] = error "Not Found"
+-- find tvar ((tvar', ttype):ctx)
+--   | tvar == tvar' = SystemTC.Snd
+--   | otherwise     = SystemTC.Compose SystemTC.Fst (find tvar ctx)
 
 -- it's a maybe
 -- if we find it
@@ -129,8 +143,44 @@ find tvar ((tvar', ttype):ctx)
 --   (Unit, One) -> return unit
 
 
-check :: TTerm -> TType -> ReaderError TExpr
-check = undefined
+-- so our Hom thing no longer has those type variables
+-- our type checker will need ot run against untyped output and
+-- have runtime probelms
+-- but here we should check the types already
+-- a reader error needs to take a context
 
-synth :: TTerm -> ReaderError (TExpr, TType)
+-- we don't need a context if we are just a unit
+
+check :: TTerm -> TType -> ReaderError SystemTC.THom
+check (Let tvar tterm1 tterm2) ttype = undefined
+check (Lam tvar tterm) (Arrow ttype1 ttype2) = undefined
+check (Lam _ _) ttype = throwError
+  ("expected function type, got '" ++ showTType ttype ++ "'")
+check Unit One = ReaderError $ const $ Right SystemTC.UnitH
+check Unit ttype = throwError
+  ("expected unit type, got '" ++ showTType ttype ++ "'")
+check (Pair tterm1 tterm2) (Prod ttype1 ttype2) = undefined
+check (Pair _ _) ttype = throwError
+  ("expected product type, got '" ++ showTType ttype ++ "'")
+check (Iter baseTerm inductTerm tvar numTerm) ttype = do
+  baseHom   <- check baseTerm ttype
+  inductHom <- withHyp (tvar, ttype) (check inductTerm ttype)
+  numHom    <- check numTerm Nat
+  return $ SystemTC.ComposeH
+    (SystemTC.PairH SystemTC.IdH numHom)
+    (SystemTC.IterH baseHom inductHom)
+check tterm ttype = do
+  (thom, ttype') <- synth tterm
+  if ttype == ttype'
+  then return thom
+  else throwError $
+    "expected type '" ++
+    showTType ttype ++
+    "', inferred type '" ++
+    showTType ttype' ++
+    "'"
+
+
+
+synth :: TTerm -> ReaderError (SystemTC.THom, TType)
 synth = undefined

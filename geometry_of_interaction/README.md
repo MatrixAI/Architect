@@ -605,3 +605,60 @@ data AST = Something (THom a b) ...
 ```
 
 But those types will be encapsulated in the AST.
+
+---
+
+To work on this on Windows, we need to use stack, as that's the only way around it. So the stack needs to make use of the package.yaml.
+
+Oh I'm just using a simple shell.nix. And we got bifunctors there as well. Also we are only using base haskell for this as well.
+
+I remember now, it's just a simple situation with the Haskell environment. There's not even really a package.yaml for this, since it's not a package.
+
+---
+
+@CMCDragonkai Whoops wasn't notified — I'd use plain algebraic data types. Basically, just remove the type parameters from Expr/THom etc. A few more functions will become partial, and you'll need more tests. You can still store (object-language) types inside the AST, so that you can run a "retypechecker" that checks (at runtime) your AST can be typed in System T. That's the most common choice in compilers/interpreters. – Blaisorblade Nov 22 at 20:21
+
+So there are 3 solutions to this infinite type problem:
+
+1. The approach in the original post is to use Template Haskell - find would return Q.Exp, representing some Hom a b. A type error would be caught when checking the template haskell code. Basically the template haskell macros would also be type checked. Type errors are still caught before running the expressions. However tests would be needed to ensure that the macros don't produce ill-typed expressions.
+2. Dependent typing or GADTs in the input and output. So basically this means making input dependently typed. This requires faking the dependent typing using GADTs and singletons.
+
+```
+data Exp a where
+  Lam :: (Exp a -> Exp a) -> Exp (a -> b)
+  App :: Exp (a -> b) -> Exp a -> Exp b
+  Var :: String -> Exp a
+```
+
+Right now the `Lam TVar TTerm`. So we take a variable, and repeated tterm. But the above shows that you actually take a haskell function and embed it into the Exp.
+
+So then when we write this sort of language, we are just directly writing things like `Exp (\a -> a)`. We are just writing a simple version of Haskell, and just putting it inside the Exp container.
+
+So it becomes a domain specific language using the exact same syntax as Haskell. This becomes useless as we are not even doing our own typechecker anymore. Instead we just create an interpreter that interprets that into SystemTCombinator calculus. This is what they meant is that the input is already typed, and the the output stays typed.
+
+Then the third option is to make the input weakly typed, and the output strongly typed. As is what I am thinking since we take raw text and try to parse it. I'm assuming I've already parsed it.
+
+Context.lookup uses Quote.find. The lookup is just a matter of finding if a tvar exists in the context. It's meant to take the string and return us a readererror monad. This monad takes a context and returns a either string a.
+
+So we can give it the context and run it, and it should return us some valeu. In this case we want the systemtcombinator term and type. The type is shared between the 2 representations, but the term is different. That's why the we have `(Quote.find x ctx, List.assoc x ctx)`.
+
+So I think we go back to the drawing board. Not use GADTs at all.
+
+> I'd use plain algebraic data types. Basically, just remove the type parameters from Expr/THom etc. A few more functions will become partial, and you'll need more tests. You can still store (object-language) types inside the AST, so that you can run a "retypechecker" that checks (at runtime) your AST can be typed in System T. That's the most common choice in compilers/interpreters
+
+Ok so if THom has no type parameters. We just need to work on them from the term level. We store "object language types" (the types on the language we want inside the AST) so we run the type checker at runtime.
+
+---
+
+```
+data THom = IdH
+          | UnitH
+          | SuccH
+          | ComposeH THom THom
+          | PairH THom THom
+          | FstH
+          | SndH
+          | CurryH THom
+          | EvalH
+          | IterH THom THom
+```
