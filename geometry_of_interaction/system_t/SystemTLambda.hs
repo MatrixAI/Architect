@@ -1,20 +1,28 @@
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
+{-# LANGUAGE PartialTypeSignatures     #-}
+{-# LANGUAGE TypeSynonymInstances      #-}
 
 module SystemTLambda where
 
-import           qualified SystemTCombinator as SystemTC
-import Control.Monad.Except
-
--- so SystemTC now just exposes THom type (..)
--- constructors that we need to work here
-
+import           Control.Monad.Except
+import qualified SystemTCombinator    as SystemTC
 
 type TVar = String
+
 data TType = One | Prod TType TType | Arrow TType TType | Nat deriving (Eq)
+
+instance Show TType where
+  show ttype = case ttype of
+    One -> "unit"
+    Nat -> "nat"
+    Prod ttype1 ttype2 ->
+      "(" ++ show ttype1 ++ " * " ++ show ttype2 ++ ")"
+    Arrow ttype1@(Arrow _ _) ttype2 ->
+      "(" ++ show ttype1 ++ ") -> " ++ show ttype2
+    Arrow ttype1 ttype2 -> show ttype1 ++ " -> " ++ show ttype2
+
 data TTerm = Var TVar
            | Let TVar TTerm TTerm
            | Lam TVar TTerm
@@ -28,20 +36,10 @@ data TTerm = Var TVar
            | Iter TTerm TTerm TVar TTerm
            | Annot TTerm TType
 
--- can be part of the show type class
--- notice how the arrow form is matched twice, this allows us to change our pretty printer!
-showTType :: TType -> String
-showTType ttype = case ttype of
-  One -> "unit"
-  Nat -> "nat"
-  Prod ttype1 ttype2 ->
-    "(" ++ showTType ttype1 ++ " * " ++ showTType ttype2 ++ ")"
-  Arrow ttype1@(Arrow _ _) ttype2 ->
-    "(" ++ showTType ttype1 ++ ") -> " ++ showTType ttype2
-  Arrow ttype1 ttype2 -> showTType ttype1 ++ " -> " ++ showTType ttype2
+-- a context is a list of hypotheses/judgements
+type TContext = [(TVar, TType)]
 
-type Context = [(TVar, TType)]
-newtype ReaderError a = ReaderError { run :: Context -> Either String a }
+newtype ReaderError a = ReaderError { run :: TContext -> Either String a }
 
 instance Functor ReaderError where
   fmap f xs = ReaderError $ \ctx ->
@@ -61,12 +59,43 @@ instance MonadError String ReaderError where
   catchError xs f = ReaderError $ \ctx ->
     either (\e -> run (f e) ctx) Right $ run xs ctx
 
--- a hypothesis is a (TVar, TType)
--- it is 1 judgement within the context
--- we take a ReaderError a, and return ReaderError a
--- with a new hypothesis in its context!
-withHyp :: (TVar, TType) -> ReaderError a -> ReaderError a
-withHyp hyp cmd = ReaderError $ \ctx -> run cmd (hyp : ctx)
+withHypothesis :: (TVar, TType) -> ReaderError a -> ReaderError a
+withHypothesis hyp cmd = ReaderError $ \ctx -> run cmd (hyp : ctx)
+
+-- ok so this is the bidirection type checking
+
+check :: TTerm -> TType -> ReaderError SystemTC.THom
+check (Let tvar tterm1 tterm2) ttype = undefined
+check (Lam tvar tterm) (Arrow ttype1 ttype2) = undefined
+check (Lam _ _) ttype = throwError
+  ("expected function type, got '" ++ show ttype ++ "'")
+check Unit One = ReaderError $ const $ Right SystemTC.Unit
+check Unit ttype = throwError
+  ("expected unit type, got '" ++ show ttype ++ "'")
+check (Pair tterm1 tterm2) (Prod ttype1 ttype2) = undefined
+check (Pair _ _) ttype = throwError
+  ("expected product type, got '" ++ show ttype ++ "'")
+check (Iter baseTerm inductTerm tvar numTerm) ttype = do
+  baseHom   <- check baseTerm ttype
+  inductHom <- withHypothesis (tvar, ttype) (check inductTerm ttype)
+  numHom    <- check numTerm Nat
+  return $ SystemTC.Compose
+    (SystemTC.Pair SystemTC.Id numHom)
+    (SystemTC.Iter baseHom inductHom)
+check tterm ttype = do
+  (thom, ttype') <- synth tterm
+  if ttype == ttype'
+  then return thom
+  else throwError $
+    "expected type '" ++
+    show ttype ++
+    "', inferred type '" ++
+    show ttype' ++
+    "'"
+
+synth :: TTerm -> ReaderError (SystemTC.THom, TType)
+synth = undefined
+
 
 -- it seems that fst/snd may be used to help fidnign the right type
 -- it's part of the lookup function
@@ -77,7 +106,6 @@ withHyp hyp cmd = ReaderError $ \ctx -> run cmd (hyp : ctx)
 -- and if it doesn't find it... it returns an error
 -- i really don't think weneed ot use an infinite type to do this
 -- it's only used there... lol
-
 
 -- find receives a context and constructs the appropriate projection
 -- SystemTC.Compose SystemTC.Fst (SystemTC.Compose SystemTC.Fst SystemTC.Snd)
@@ -151,36 +179,3 @@ withHyp hyp cmd = ReaderError $ \ctx -> run cmd (hyp : ctx)
 
 -- we don't need a context if we are just a unit
 
-check :: TTerm -> TType -> ReaderError SystemTC.THom
-check (Let tvar tterm1 tterm2) ttype = undefined
-check (Lam tvar tterm) (Arrow ttype1 ttype2) = undefined
-check (Lam _ _) ttype = throwError
-  ("expected function type, got '" ++ showTType ttype ++ "'")
-check Unit One = ReaderError $ const $ Right SystemTC.UnitH
-check Unit ttype = throwError
-  ("expected unit type, got '" ++ showTType ttype ++ "'")
-check (Pair tterm1 tterm2) (Prod ttype1 ttype2) = undefined
-check (Pair _ _) ttype = throwError
-  ("expected product type, got '" ++ showTType ttype ++ "'")
-check (Iter baseTerm inductTerm tvar numTerm) ttype = do
-  baseHom   <- check baseTerm ttype
-  inductHom <- withHyp (tvar, ttype) (check inductTerm ttype)
-  numHom    <- check numTerm Nat
-  return $ SystemTC.ComposeH
-    (SystemTC.PairH SystemTC.IdH numHom)
-    (SystemTC.IterH baseHom inductHom)
-check tterm ttype = do
-  (thom, ttype') <- synth tterm
-  if ttype == ttype'
-  then return thom
-  else throwError $
-    "expected type '" ++
-    showTType ttype ++
-    "', inferred type '" ++
-    showTType ttype' ++
-    "'"
-
-
-
-synth :: TTerm -> ReaderError (SystemTC.THom, TType)
-synth = undefined

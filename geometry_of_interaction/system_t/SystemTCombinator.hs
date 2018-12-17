@@ -2,6 +2,19 @@
 
 module SystemTCombinator where
 
+-- untyped version
+data THom = Id
+          | Unit
+          | Zero
+          | Succ
+          | Compose THom THom
+          | Pair THom THom
+          | Fst
+          | Snd
+          | Curry THom
+          | Eval
+          | Iter THom THom
+
 -- SystemT is a finite type extension of primitive recursive arithmetic
 -- it was developed by Kurt Godel to provide a consistency proof of arithmetic
 -- it ends up being a sort of small typed functional language
@@ -34,40 +47,6 @@ module SystemTCombinator where
 -- to give an implementation is to also intepret these things
 -- so the above is a free monad, and then we have an interpreter of these things
 -- I'm commenting them out for now until I figure out how to write the interpreter
-
-
--- the above tries to lift the types to the haskell type level
--- we want to avoid doing that, so that types of the object language is embedded, and not lifted into Haskell
--- so that means THom a b, are kept inside...
--- instead we take a type... and then match against the type
---
--- -- and we want ensure that we have special types...
--- we always take a specific constructor
--- so we must enure that the Unit constructor is constructed with the necessary things?
---
-
-
-
-data THom = IdH
-          | UnitH
-          | ZeroH
-          | SuccH
-          | ComposeH THom THom
-          | PairH THom THom
-          | FstH
-          | SndH
-          | CurryH THom
-          | EvalH
-          | IterH THom THom
-
--- we can write intepreters for THom below
--- note that THom isn't really typed
--- when we construct, the expressions can be bad
--- but we are going to check the types ahead of this
--- so by the time we generate this
--- we won't need to check types again
--- we can assume it works
--- but it does mean that the interpreter itself will be partial!
 
 -- import Prelude hiding (fst, snd, curry, succ)
 -- import qualified Prelude

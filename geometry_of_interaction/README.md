@@ -662,3 +662,56 @@ data THom = IdH
           | EvalH
           | IterH THom THom
 ```
+
+So we learned that we cannot just use GADTs or stuff to encode what we want. Instead we want to use just plain algebraic data types, but that means you can construct failing things. But that's fine since we are going to runtime typecheck it anyway! That's the whole idea.
+
+I remember now that I used powershell. That creates a environment by loading envrionment variables. It also creates directory and sets up some environment variables. But because there's no concept of shell.nix, then I expect the environment to exist on Windows already.
+
+Anyway, we removed the type parameters from the type constructor. We are just keeping them as the same type. And instead such type parameters are encapsulated within the constructors. We use tagged constructors to pattern match what to do.
+
+That's the `THom` type which includes many Hom constructors. And it's a `THom`, as in system T homomorphism. It is a combinator style language. An abstract data type for programs in System T. 
+
+In this language, we have all those combinators...
+
+SystemT composition is `>>>` not the same.
+
+Ok I see. It does make sense now that `ComposeH ZeroH SuccH` is needed
+
+Then you also need
+
+Hom a unit COMPOSE Hom unit nat
+
+Note that `compose unit zero` makes sense as well. Ok...
+
+```
+ComposeH UnitH ZeroH
+```
+
+So we have this idea. Alternatively we have `H` constructors. I actually don't think constructors should be qualified like this. Constructors don't need to be qualified, only within their modules. And that's already done!
+
+But THom is a fine type.
+
+Ther'es a function that can take `Hom unit nat -> Int`. Does that still make sense? It says that 
+
+```
+run :: Hom () Nat -> Int
+run e = loop $ e ()
+
+loop = \case
+  Zero -> 0
+  Succ n -> 1 + loop n
+  
+Ok that only makes sense if our constructor inside is another n. I don't thin run makes sense anymore.
+```
+
+The run function is supposed to take a Hom that takes a unit to natural number. And basically resolve the peano numbers down to the original nubmer. But to do this, our Succ or composition of Homs will need to be something that can be unit to natural number. For that to even make sense, you have to do something else entirely. You can no longer assume the types are correct. So if you take a THom, you have to pattern matching on everything, for most are fails. But you can if you can break down. Before the construction gives you a THom is already collapsed. That is the compose function just returns a nother function. But here we have a ComposeH, and we would have to do something there. I think this doesn't make sense.
+
+The construction is not resolved, we keep building up a tree!
+
+On the STC we just expose the THom and constructors of our language. Our language is necessarily weakly typed. But we check this and ensure that we have a correct system afterwards and intepret accordingly!
+
+On error handling. The standard is to use MonadError here from the mtl package. But there's also MonadThrow from the exceptions package from Ed Kmett, which appears to extend on that. Don't use Monad fail.
+
+https://www.reddit.com/r/haskell/comments/3zbgn0/exceptions_best_practices/
+
+Seems to recommend to use MonadCatch and MonadThrow instead.
