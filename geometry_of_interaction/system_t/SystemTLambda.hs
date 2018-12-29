@@ -6,7 +6,7 @@
 
 module SystemTLambda where
 
-import           Control.Monad.Except
+import           Control.Monad.Catch
 import qualified SystemTCombinator    as SystemTC
 
 type TVar = String
@@ -31,151 +31,186 @@ data TTerm = Var TVar
            | Pair TTerm TTerm
            | Fst TTerm
            | Snd TTerm
-           | ZeroT
-           | SuccT TTerm
+           | Zero
+           | Succ TTerm
            | Iter TTerm TTerm TVar TTerm
            | Annot TTerm TType
+           deriving (Show)
 
 -- a context is a list of hypotheses/judgements
 type TContext = [(TVar, TType)]
 
-newtype ReaderError a = ReaderError { run :: TContext -> Either String a }
+-- our exceptions for SystemT
+data TException = TypeCheckException String
+                | BindingException String
+  deriving (Show)
 
-instance Functor ReaderError where
-  fmap f xs = ReaderError $ \ctx ->
+instance Exception TException
+
+newtype Parser a = Parser { run :: TContext -> Either SomeException a }
+
+instance Functor Parser where
+  fmap f xs = Parser $ \ctx ->
     either Left (\v -> Right $ f v) $ run xs ctx
 
-instance Applicative ReaderError where
-  pure a = ReaderError $ \ctx -> Right a
-  fs <*> xs = ReaderError $ \ctx ->
+instance Applicative Parser where
+  pure a = Parser $ \ctx -> Right a
+  fs <*> xs = Parser $ \ctx ->
     either Left (\f -> fmap f $ run xs ctx) (run fs ctx)
 
-instance Monad ReaderError where
-  xs >>= f = ReaderError $ \ctx ->
+instance Monad Parser where
+  xs >>= f = Parser $ \ctx ->
     either Left (\v -> run (f v) ctx) $ run xs ctx
 
-instance MonadError String ReaderError where
-  throwError e = ReaderError $ const $ Left e
-  catchError xs f = ReaderError $ \ctx ->
-    either (\e -> run (f e) ctx) Right $ run xs ctx
+instance MonadThrow Parser where
+  throwM e = Parser (const $ Left $ toException e)
 
-withHypothesis :: (TVar, TType) -> ReaderError a -> ReaderError a
-withHypothesis hyp cmd = ReaderError $ \ctx -> run cmd (hyp : ctx)
+instance MonadCatch Parser where
+  catch p f = Parser $ \ctx ->
+    either
+      (\e -> case fromException e of
+        Just e' -> run (f e') ctx -- this handles the exception
+        Nothing -> Left e) -- this propagates it upwards
+      Right
+      $ run p ctx
+
+-- try this!
+-- throwM (TypeCheckException "hah") `catch` \e -> putStrLn ("Caught " ++ show (e :: TException))
+
+withHypothesis :: (TVar, TType) -> Parser a -> Parser a
+withHypothesis hyp cmd = Parser $ \ctx -> run cmd (hyp : ctx)
+
+-- this is not productive
+-- at most it will iterate over the entire list
+-- before returning a result
+-- foldr version!
+tvarToHom :: TVar -> Parser (SystemTC.THom, TType)
+tvarToHom var = Parser $ \ctx ->
+  case foldr transform Nothing ctx of
+    Just x -> Right x
+    Nothing -> throwM $ BindingException ("unbound variable " ++ show var)
+  where
+    transform (var', varType) homAndType =
+      if var == var'
+      then Just (SystemTC.Snd, varType)
+      else homAndType >>= (\(varHom, varType) -> Just (SystemTC.Compose SystemTC.Fst varHom, varType))
+
+-- tvarToHom :: TVar -> Parser (SystemTC.THom, TType)
+-- tvarToHom tvar = Parser $ \ctx ->
+--   case go tvar ctx of
+--     Just x -> Right x
+--     Nothing -> throwM $ BindingException ("unbound variable " ++ show tvar)
+--   where
+--     -- this is fold operation!
+--     -- we are folding a context list into a Maybe of (Thom TType)
+--     go :: TVar -> TContext -> Maybe (SystemTC.THom, TType)
+--     go var [] = Nothing
+--     go var ((var', varType):ctx) | var == var' = Just (SystemTC.Snd, varType)
+--                                  | otherwise   = do
+--                                  (varHom, varType) <- go var ctx
+--                                  return (SystemTC.Compose SystemTC.Fst varHom, varType)
 
 -- ok so this is the bidirection type checking
 
-check :: TTerm -> TType -> ReaderError SystemTC.THom
-check (Let tvar tterm1 tterm2) ttype = undefined
-check (Lam tvar tterm) (Arrow ttype1 ttype2) = undefined
-check (Lam _ _) ttype = throwError
-  ("expected function type, got '" ++ show ttype ++ "'")
-check Unit One = ReaderError $ const $ Right SystemTC.Unit
-check Unit ttype = throwError
-  ("expected unit type, got '" ++ show ttype ++ "'")
-check (Pair tterm1 tterm2) (Prod ttype1 ttype2) = undefined
-check (Pair _ _) ttype = throwError
-  ("expected product type, got '" ++ show ttype ++ "'")
+check :: TTerm -> TType -> Parser SystemTC.THom
+-- check a lambda
+check (Lam var bodyTerm) (Arrow varType bodyType) =
+  withHypothesis (var, varType) $
+  check bodyTerm bodyType >>= (\bodyHom -> return $ SystemTC.Curry bodyHom)
+check (Lam _    _    ) ttype                 = throwM
+  $ TypeCheckException ("expected function type, got '" ++ show ttype ++ "'")
+-- check unit
+check Unit One = return SystemTC.Unit
+check Unit ttype =
+  throwM $ TypeCheckException ("expected unit type, got '" ++ show ttype ++ "'")
+-- check products
+check (Pair term1 term2) (Prod ttype1 ttype2) = do
+  hom1 <- check term1 ttype1
+  hom2 <- check term2 ttype2
+  return $ SystemTC.Pair hom1 hom2
+check (Pair _      _     ) ttype                = throwM
+  $ TypeCheckException ("expected product type, got '" ++ show ttype ++ "'")
+-- check primitive recursion
 check (Iter baseTerm inductTerm tvar numTerm) ttype = do
   baseHom   <- check baseTerm ttype
   inductHom <- withHypothesis (tvar, ttype) (check inductTerm ttype)
   numHom    <- check numTerm Nat
-  return $ SystemTC.Compose
-    (SystemTC.Pair SystemTC.Id numHom)
-    (SystemTC.Iter baseHom inductHom)
+  return $ SystemTC.Compose (SystemTC.Pair SystemTC.Id numHom)
+                            (SystemTC.Iter baseHom inductHom)
+-- check let bindings
+check (Let var valueTerm exprTerm) exprType = do
+  (valueHom, valueType) <- synth valueTerm
+  exprHom <- withHypothesis (var, valueType) (check exprTerm exprType)
+  return $ SystemTC.Compose (SystemTC.Pair SystemTC.Id valueHom) exprHom
 check tterm ttype = do
   (thom, ttype') <- synth tterm
   if ttype == ttype'
-  then return thom
-  else throwError $
-    "expected type '" ++
-    show ttype ++
-    "', inferred type '" ++
-    show ttype' ++
-    "'"
+    then return thom
+    else throwM $ TypeCheckException
+      (  "expected type '"
+      ++ show ttype
+      ++ "', inferred type '"
+      ++ show ttype'
+      ++ "'"
+      )
 
-synth :: TTerm -> ReaderError (SystemTC.THom, TType)
-synth = undefined
+-- why synth Let if you don't need it
+-- also synth is infer plus conversion to Hom
+-- since check is also used wiht let
+-- because the check calls synth instead of check again
+-- so synth has to potentially take a Let binding as well
+synth :: TTerm -> Parser (SystemTC.THom, TType)
+synth (Var tvar) = tvarToHom tvar
+synth (Let var valueTerm exprTerm) = do
+  (valueHom, valueType) <- synth valueTerm
+  (exprHom, exprType) <- withHypothesis (var, valueType) (synth exprTerm)
+  return (SystemTC.Compose (SystemTC.Pair SystemTC.Id valueHom) exprHom, exprType)
+synth (App functionTerm valueTerm) = do
+  (functionHom, functionType) <- synth functionTerm
+  case functionType of
+    Arrow headType bodyType -> do
+      valueHom <- check valueTerm headType
+      return (SystemTC.Compose (SystemTC.Pair functionHom valueHom) SystemTC.Eval, bodyType)
+    _ -> throwM $ TypeCheckException ("expected function, got '" ++ show functionType ++ "'")
+synth (Fst pairTerm) = do
+  (pairHom, pairType) <- synth pairTerm
+  case pairType of
+    Prod fstType sndType -> return (SystemTC.Compose pairHom SystemTC.Fst, fstType)
+    _ -> throwM $ TypeCheckException ("expected product, got '" ++ show pairType ++ "'")
+synth (Snd pairTerm) = do
+  (pairHom, pairType) <- synth pairTerm
+  case pairType of
+    Prod fstType sndType -> return (SystemTC.Compose pairHom SystemTC.Snd, sndType)
+    _ -> throwM $ TypeCheckException ("expected product, got '" ++ show pairType ++ "'")
+synth Zero = return (SystemTC.Compose SystemTC.Unit SystemTC.Zero, Nat)
+synth (Succ numTerm) = do
+  numHom <- check numTerm Nat
+  return (SystemTC.Compose numHom SystemTC.Succ, Nat)
+synth (Annot term ttype) = do
+  hom <- check term ttype
+  return (hom, ttype)
+synth _ = throwM $ TypeCheckException "unknown synthesis"
 
+-- WOOOHOO!
 
--- it seems that fst/snd may be used to help fidnign the right type
--- it's part of the lookup function
--- which does what...?
--- it looks up a variable inside a context
--- and if it finds it, it returns Right ...
--- its a ReaderError thing
--- and if it doesn't find it... it returns an error
--- i really don't think weneed ot use an infinite type to do this
--- it's only used there... lol
+result :: TTerm
+result =
+  Let "sum"
+    (Annot
+      (Lam "x" $ Lam "y" $
+       Iter (Var "y") (Succ $ Var "n") "n" (Var "x"))
+      (Arrow Nat $ Arrow Nat Nat))
+    (App
+      (App
+        (Var "sum")
+        (Succ $ Succ Zero))
+      (Succ $ Succ $ Succ Zero))
 
--- find receives a context and constructs the appropriate projection
--- SystemTC.Compose SystemTC.Fst (SystemTC.Compose SystemTC.Fst SystemTC.Snd)
--- THom (((a, c), b1), b2) c
+result2 = run (synth result) []
 
--- the problem is that find is actually returning an infinite type
--- the Snd and Fst composition can return more larger and larger types
--- it seems we could use Fix types to deal with this, to actually get us a recursive potentially infinite type
--- but it results it much more complexity for this function
--- the reason the find works in that case, is because it is masked
--- the whole thing gets put inside an AST node
--- so really we are dealing with a seris of projectsions
--- i'm still not entirely sure what this is needed for
-
--- it seems we need to existentially quantify our THom types
--- otherwise there doesn't seem to be a way to produce what we want
--- data TExpr = forall a b. TExpr (SystemTC.THom a b)
-
--- find :: TVar -> Context -> _
--- find tvar [] = error "Not Found"
--- find tvar ((tvar', ttype):ctx)
---   | tvar == tvar' = SystemTC.Snd
---   | otherwise     = SystemTC.Compose SystemTC.Fst (find tvar ctx)
-
--- it's a maybe
--- if we find it
--- the problem is that the "term"
--- is an infinite type atm
--- the gadt Compose is meant to give back THom a c
--- but the a gets expanded by the Fst and Snd
--- so we end up with something strange
--- we need to wrap this type some how
--- becuase I'm pretty sure you still need the types there
--- THom a b is still important right
--- you wouldn't want to have no types there at all
--- lookupTvar :: TVar -> ReaderError (THom _ _, TType)
--- lookupTvar tvar = ReaderError $ \ctx ->
---   case lookup tvar ctx of
---     Just ttype -> (_, ttype)
---     Nothing -> Left "tvar is unbound"
-
---
-
--- because it can be a projection expression
--- that is so weird
-
--- this seems to try to find a x in the a context
--- if it finds the x, it returns a snd expression
--- otherwise it will compose fst with find x ctx
--- why the hell is doing this?
--- and we would be returning THom
--- not Goel
-
--- this an exception system?
--- for some reason
-
--- check :: TTerm -> TType -> Context THom
--- check tterm ttype = undefined
--- check :: TTerm -> TType -> Context TTerm
--- check tterm ttype = case (tterm ttype) of
---   (Lam x e, Arrow ttype1 ttype2) -> undefined
---   (Lam _ _, ttype) -> error $ "Unexpected function type " ++ showTType ttype
---   (Unit, One) -> return unit
-
-
--- so our Hom thing no longer has those type variables
--- our type checker will need ot run against untyped output and
--- have runtime probelms
--- but here we should check the types already
--- a reader error needs to take a context
-
--- we don't need a context if we are just a unit
-
+-- do we use check or synth as the entrypoint?
+-- it seems to mean that you always use synth as an entrypoint
+-- since you start always with terms that you need to synthesize 
+-- but also if you know that your program can be IO ()
+-- then you would always enter with check, that the main is IO ()
+-- but that doesn't really work either...

@@ -715,3 +715,13 @@ On error handling. The standard is to use MonadError here from the mtl package. 
 https://www.reddit.com/r/haskell/comments/3zbgn0/exceptions_best_practices/
 
 Seems to recommend to use MonadCatch and MonadThrow instead.
+
+Using the exceptions package, we get to use `throwM :: (Exception e, MonadThrow m) => e -> m a`.
+
+---
+
+1. Control.Monad.Except (mtl)
+2. Control.Monad.Catch (exceptions)
+3. Control.Exceptions (base)
+
+Those are your 3 choices, prefer 2.

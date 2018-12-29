@@ -14,6 +14,7 @@ data THom = Id
           | Curry THom
           | Eval
           | Iter THom THom
+          deriving (Show)
 
 -- SystemT is a finite type extension of primitive recursive arithmetic
 -- it was developed by Kurt Godel to provide a consistency proof of arithmetic
