@@ -1,5 +1,5 @@
 with import <nixpkgs> {};
-let ghc = haskellPackages.ghcWithPackages (p: with p; [ bifunctors mtl ]);
+let ghc = haskellPackages.ghcWithPackages (p: with p; [ bifunctors mtl exceptions ]);
 in
 pkgs.stdenv.mkDerivation {
   name = "haskell-env";
